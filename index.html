@@ -1,0 +1,2135 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Personal Site</title>
+<meta name="description" content="单文件静态个人主页：BNCT 治疗计划、蒙特卡罗剂量计算与 CT 材料赋值的文献笔记。">
+
+<!-- ============================================================
+     单文件多页个人站 · 使用说明（维护用）
+     ------------------------------------------------------------
+     1. 全站只有一个文件，靠 #/xxx 哈希路由切换子页面；
+        也支持 #/页面/锚点 的页内跳转（如 #/manual/m-plan）。
+     2. 现有子页：home 首页 / research 文献调研 / manual 行动手册 / todo 待办清单 / about 关于。
+     3. 新增一个子页面 = 三步：
+        ① 在 <nav> 里加一条  <a href="#/newpage" data-nav="newpage">标题</a>
+        ② 在 <main> 里加一块  <section class="page" id="page-newpage"> ... </section>
+        ③ 在页面底部的 ROUTES 对象里加上 'newpage': '标题'
+     4. 颜色统一走 CSS 变量（见 :root），改一处全站生效。
+     5. 主题：右上角按钮切换浅色/深色，偏好存在 localStorage。
+     6. 手册页的可勾选清单也存 localStorage（键名 bnct-*），刷新不丢。
+     7. 待办清单：本地存 todo-tasks，可选 GitHub 同步（配置存 todo-sync，
+        数据写回仓库里的 todos.json）。部署与使用说明见同目录 README.md。
+     ============================================================ -->
+
+<style>
+  :root {
+    /* 品牌蓝 #25506B 派生的全部色阶 */
+    --brand:        #25506B;
+    --brand-deep:   #1E4056;
+    --brand-mid:    #3A6E8C;
+    --brand-soft:   #E9EEF0;
+    --brand-tint:   #F4F6F8;
+    --brand-line:   #D4DBE0;
+
+    --bg:           #F6F8F9;
+    --surface:      #FFFFFF;
+    --surface-2:    #FBFCFC;
+    --text:         #1F2D36;
+    --text-soft:    #43535D;
+    --muted:        #7B8B95;
+    --border:       #E4EAED;
+    --shadow:       0 2px 8px rgba(30,64,86,.05);
+    --shadow-lg:    0 10px 28px rgba(30,64,86,.13);
+    --code-bg:      #EEF2F4;
+
+    --c-must:       #C0392B;  --c-must-bg:  #FDECEA;
+    --c-open:       #16A085;  --c-open-bg:  #E8F8F5;
+    --c-note:       #B7950B;  --c-note-bg:  #FEF9E7;
+    --c-doi:        #8E44AD;  --c-doi-bg:   #F4ECF7;
+    --c-arx:        #566573;  --c-arx-bg:   #F0F2F3;
+
+    --radius: 12px;
+  }
+  html[data-theme="dark"] {
+    --brand:        #8FB6CE;
+    --brand-deep:   #C6DDE9;
+    --brand-mid:    #6E9AB5;
+    --brand-soft:   #1E2C35;
+    --brand-tint:   #18242C;
+    --brand-line:   #2C3D48;
+
+    --bg:           #0F151A;
+    --surface:      #17222A;
+    --surface-2:    #1B2831;
+    --text:         #E6EDF1;
+    --text-soft:    #BCCBD4;
+    --muted:        #8DA0AB;
+    --border:       #26363F;
+    --shadow:       0 2px 8px rgba(0,0,0,.35);
+    --shadow-lg:    0 10px 28px rgba(0,0,0,.5);
+    --code-bg:      #1E2C35;
+
+    --c-must:       #F0806F;  --c-must-bg:  #3A2120;
+    --c-open:       #5FCFB6;  --c-open-bg:  #15302C;
+    --c-note:       #E2C15C;  --c-note-bg:  #332C15;
+    --c-doi:        #C79BE0;  --c-doi-bg:   #2C2138;
+    --c-arx:        #A9B6BE;  --c-arx-bg:   #232C31;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.8;
+    -webkit-font-smoothing: antialiased;
+    transition: background .25s, color .25s;
+  }
+  .container { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+  a { color: var(--brand); }
+
+  /* ---------- 顶部导航 ---------- */
+  .topbar {
+    position: sticky; top: 0; z-index: 50;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: saturate(180%) blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+  html[data-theme="dark"] .topbar { background: rgba(15,21,26,.88); }
+  html[data-theme="light"] .topbar { background: rgba(246,248,249,.88); }
+  .nav-wrap {
+    max-width: 1080px; margin: 0 auto; padding: 0 24px;
+    height: 62px; display: flex; align-items: center; gap: 14px;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 10px;
+    text-decoration: none; color: var(--text);
+    font-weight: 700; font-size: 16px; letter-spacing: .3px;
+    flex-shrink: 0;
+  }
+  .brand .mono {
+    width: 30px; height: 30px; border-radius: 8px;
+    background: var(--brand); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 800; letter-spacing: 0;
+  }
+  html[data-theme="dark"] .brand .mono { color: #0F151A; }
+  .brand small { display: block; font-size: 11px; color: var(--muted); font-weight: 400; letter-spacing: .5px; }
+
+  .nav-links { display: flex; gap: 6px; margin-left: auto; align-items: center; }
+  .nav-links a {
+    text-decoration: none; color: var(--text-soft); font-size: 14.5px;
+    padding: 6px 14px; border-radius: 8px; transition: all .18s; font-weight: 500;
+  }
+  .nav-links a:hover { background: var(--brand-soft); color: var(--brand); }
+  .nav-links a.active { background: var(--brand); color: #fff; }
+  html[data-theme="dark"] .nav-links a.active { color: #0F151A; }
+
+  .theme-btn {
+    width: 34px; height: 34px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface);
+    color: var(--text-soft); font-size: 15px; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .18s; flex-shrink: 0;
+  }
+  .theme-btn:hover { border-color: var(--brand); color: var(--brand); }
+  .menu-btn { display: none; }
+
+  /* ---------- 页面切换 ---------- */
+  .page { display: none; }
+  .page.active { display: block; animation: fadeUp .38s ease both; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+  /* ---------- 首页 Hero ---------- */
+  .hero {
+    background:
+      radial-gradient(900px 420px at 88% 8%, rgba(255,255,255,.14), transparent 60%),
+      linear-gradient(135deg, #25506B 0%, #2F6280 55%, #5A8299 100%);
+    color: #fff;
+    padding: 78px 0 70px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::after {
+    content: ""; position: absolute; right: -80px; bottom: -120px;
+    width: 360px; height: 360px; border-radius: 50%;
+    border: 1px solid rgba(255,255,255,.18);
+    box-shadow: 0 0 0 60px rgba(255,255,255,.05), 0 0 0 120px rgba(255,255,255,.03);
+    pointer-events: none;
+  }
+  .hero .badge {
+    display: inline-block; background: rgba(255,255,255,.14);
+    border: 1px solid rgba(255,255,255,.3);
+    padding: 4px 16px; border-radius: 999px;
+    font-size: 12.5px; letter-spacing: 1.6px; margin-bottom: 22px;
+  }
+  .hero h1 { font-size: 38px; font-weight: 800; line-height: 1.35; margin-bottom: 16px; letter-spacing: .5px; }
+  .hero h1 span { color: #BFE0EE; }
+  .hero p.lead { font-size: 16.5px; color: #DCE7ED; max-width: 640px; margin-bottom: 12px; }
+  .hero .hero-tags { display: flex; flex-wrap: wrap; gap: 8px; margin: 24px 0 30px; }
+  .hero .hero-tags span {
+    font-size: 12.5px; padding: 4px 13px; border-radius: 999px;
+    background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22);
+    color: #EAF2F6;
+  }
+  .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    text-decoration: none; font-size: 15px; font-weight: 600;
+    padding: 11px 24px; border-radius: 10px; transition: all .2s;
+    border: 1px solid transparent;
+  }
+  .btn-solid { background: #fff; color: #25506B; }
+  .btn-solid:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,.22); }
+  .btn-ghost { border-color: rgba(255,255,255,.42); color: #fff; }
+  .btn-ghost:hover { background: rgba(255,255,255,.14); transform: translateY(-2px); }
+
+  /* ---------- 通用区块 ---------- */
+  main { min-height: 62vh; }
+  .block { padding: 52px 0 6px; }
+  .block-head { margin-bottom: 26px; }
+  .block-head .eyebrow {
+    font-size: 11.5px; letter-spacing: 2.4px; color: var(--muted);
+    font-weight: 700; margin-bottom: 8px;
+  }
+  .block-head h2 { font-size: 23px; color: var(--brand); font-weight: 700; }
+  .block-head .sub { color: var(--muted); font-size: 15px; margin-top: 6px; }
+
+  .grid { display: grid; gap: 18px; }
+  .grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+
+  .tile {
+    display: block; text-decoration: none; color: inherit;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px 26px;
+    box-shadow: var(--shadow); transition: all .22s; position: relative;
+  }
+  .tile:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); border-color: var(--brand-line); }
+  .tile .tile-ico {
+    width: 38px; height: 38px; border-radius: 10px;
+    background: var(--brand-soft); color: var(--brand);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px; font-weight: 800; margin-bottom: 14px;
+  }
+  .tile h3 { font-size: 17px; margin-bottom: 6px; color: var(--text); }
+  .tile p { font-size: 14px; color: var(--muted); line-height: 1.75; }
+  .tile .arrow { position: absolute; right: 22px; top: 24px; color: var(--brand-line); font-size: 16px; transition: all .2s; }
+  .tile:hover .arrow { color: var(--brand); transform: translateX(3px); }
+
+  /* 时间线（最近更新） */
+  .updates { list-style: none; }
+  .updates li {
+    display: flex; gap: 18px; padding: 14px 20px; align-items: baseline;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; margin-bottom: 10px; box-shadow: var(--shadow);
+  }
+  .updates .date { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; flex-shrink: 0; width: 82px; }
+  .updates .what { font-size: 14.5px; color: var(--text-soft); }
+  .updates .what a { font-weight: 600; text-decoration: none; border-bottom: 1px solid var(--brand-line); }
+
+  /* ---------- 内页头 ---------- */
+  .page-head {
+    padding: 52px 0 30px; border-bottom: 1px solid var(--border); margin-bottom: 8px;
+  }
+  .page-head .eyebrow {
+    font-size: 11.5px; letter-spacing: 2.4px; color: var(--brand-mid);
+    font-weight: 700; margin-bottom: 10px;
+  }
+  .page-head h1 { font-size: 30px; font-weight: 800; color: var(--brand); line-height: 1.4; margin-bottom: 12px; }
+  .page-head p { color: var(--text-soft); font-size: 15.5px; max-width: 780px; }
+  .page-head p + p { margin-top: 8px; }
+  .page-head .small { font-size: 13.4px; color: var(--muted); }
+
+  /* ---------- 文献卡（原页面样式保留） ---------- */
+  .section-title { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
+  .section-title .num {
+    width: 44px; height: 44px; border-radius: 12px;
+    background: var(--brand); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; font-weight: 700; flex-shrink: 0;
+  }
+  html[data-theme="dark"] .section-title .num { color: #0F151A; }
+  .section-title h2 { font-size: 23px; color: var(--brand); }
+  .section-desc { color: var(--muted); margin-bottom: 24px; padding-left: 58px; font-size: 14.5px; }
+  .section-desc strong { color: var(--brand); }
+  .pillar { padding-top: 46px; }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 24px 28px; margin-bottom: 18px;
+    box-shadow: var(--shadow); transition: box-shadow .25s, transform .25s, border-color .25s;
+  }
+  .card:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); border-color: var(--brand-line); }
+  .card .paper-title { font-size: 17px; font-weight: 700; color: var(--text); margin-bottom: 6px; line-height: 1.55; }
+  .card .paper-meta { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+  .card .paper-meta .journal { color: var(--brand-mid); font-weight: 600; }
+  .tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .tag {
+    background: var(--brand-soft); color: var(--brand);
+    font-size: 12px; padding: 3px 12px; border-radius: 999px; font-weight: 600;
+  }
+  .tag.must { background: var(--c-must-bg); color: var(--c-must); }
+  .tag.open { background: var(--c-open-bg); color: var(--c-open); }
+  .card .paper-abstract { font-size: 14.5px; color: var(--text-soft); margin-bottom: 12px; }
+  .card .paper-value {
+    background: var(--brand-tint);
+    border-left: 4px solid var(--brand-mid);
+    padding: 12px 16px; border-radius: 0 8px 8px 0;
+    font-size: 14px; color: var(--text-soft); margin-bottom: 14px;
+  }
+  .card .paper-value::before { content: "⚑ 对你的价值："; font-weight: 700; color: var(--brand); }
+
+  .doi-bar {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    padding-top: 12px; border-top: 1px dashed var(--border);
+  }
+  .doi-label { font-size: 13px; font-weight: 700; color: var(--muted); flex-shrink: 0; }
+  .doi-link {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 13px; font-weight: 600;
+    text-decoration: none; padding: 5px 14px; border-radius: 8px; transition: all .2s;
+  }
+  .doi-link.iop { background: var(--brand-soft); color: var(--brand); }
+  .doi-link.pubmed { background: var(--c-open-bg); color: var(--c-open); }
+  .doi-link.nature { background: var(--c-note-bg); color: var(--c-note); }
+  .doi-link.wiley { background: var(--c-doi-bg); color: var(--c-doi); }
+  .doi-link.sciencedirect { background: var(--c-must-bg); color: var(--c-must); }
+  .doi-link.arxiv { background: var(--c-arx-bg); color: var(--c-arx); }
+  .doi-link:hover { filter: brightness(.94); transform: translateY(-1px); }
+  html[data-theme="dark"] .doi-link:hover { filter: brightness(1.15); }
+
+  .timeline { position: relative; padding-left: 36px; margin-top: 8px; }
+  .timeline::before {
+    content: ""; position: absolute; left: 12px; top: 8px; bottom: 8px; width: 3px;
+    background: linear-gradient(to bottom, var(--brand-mid), var(--brand-line));
+    border-radius: 3px;
+  }
+  .step { position: relative; margin-bottom: 24px; }
+  .step::before {
+    content: ""; position: absolute; left: -31px; top: 9px;
+    width: 15px; height: 15px; background: var(--surface);
+    border: 4px solid var(--brand-mid); border-radius: 50%;
+  }
+  .step .step-head { font-size: 16px; font-weight: 700; color: var(--brand); margin-bottom: 4px; }
+  .step .step-body { font-size: 14.5px; color: var(--text-soft); }
+  .step .step-body a { font-weight: 600; text-decoration: none; border-bottom: 1px solid var(--brand-line); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 12px; }
+  th, td { border: 1px solid var(--border); padding: 10px 14px; text-align: left; vertical-align: top; }
+  th { background: var(--brand-soft); color: var(--brand); font-weight: 700; }
+  tr:nth-child(even) td { background: var(--surface-2); }
+  td strong { color: var(--brand); }
+
+  /* ---------- 关于页 ---------- */
+  .about-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 28px 30px; box-shadow: var(--shadow);
+    margin-bottom: 18px;
+  }
+  .about-card h3 {
+    font-size: 16px; color: var(--brand); font-weight: 700;
+    padding-bottom: 10px; margin-bottom: 14px; border-bottom: 2px solid var(--brand-line);
+  }
+  .kv { list-style: none; }
+  .kv li { display: flex; gap: 16px; font-size: 14.5px; padding: 7px 0; color: var(--text-soft); }
+  .kv .k { width: 88px; flex-shrink: 0; color: var(--muted); font-weight: 600; font-size: 13.5px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chips span {
+    background: var(--brand-soft); color: var(--brand);
+    font-size: 13px; padding: 5px 14px; border-radius: 8px; font-weight: 600;
+  }
+  .about-card p { font-size: 14.8px; color: var(--text-soft); }
+  .about-card p + p { margin-top: 10px; }
+  code {
+    background: var(--code-bg); padding: 1px 7px; border-radius: 5px;
+    font-size: 13px; font-family: ui-monospace, Consolas, monospace; color: var(--brand);
+  }
+
+  /* ================= 手册页组件（.doc 作用域，不影响其它页） ================= */
+  .doc h3 { font-size: 18px; font-weight: 700; color: var(--text); margin: 30px 0 8px; line-height: 1.45; }
+  .doc h4 { font-size: 15.5px; font-weight: 700; color: var(--brand); margin: 20px 0 6px; }
+  .doc p { font-size: 14.8px; color: var(--text-soft); margin-bottom: 12px; }
+  .doc ul, .doc ol { padding-left: 24px; margin: 0 0 14px; }
+  .doc li { font-size: 14.6px; color: var(--text-soft); margin: 6px 0; line-height: 1.75; }
+  .doc strong { color: var(--text); }
+  .doc .section-desc { color: var(--muted); font-size: 14.5px; }
+  .small { font-size: 12.8px; color: var(--muted); }
+
+  /* 目录卡 */
+  .toc {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 22px 26px; box-shadow: var(--shadow); margin: 26px 0 4px;
+  }
+  .toc .toc-title { font-size: 15px; font-weight: 700; color: var(--brand); margin-bottom: 12px; letter-spacing: .5px; }
+  .toc ol { columns: 2; column-gap: 36px; padding-left: 20px; margin: 0; }
+  .toc li { break-inside: avoid; margin: 5px 0; font-size: 14px; }
+  .toc a { text-decoration: none; color: var(--text-soft); border-bottom: 1px solid transparent; transition: all .18s; }
+  .toc a:hover { color: var(--brand); border-bottom-color: var(--brand-line); }
+
+  /* 提示条 / 警告条 */
+  .note, .warn { padding: 14px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; }
+  .note { background: var(--brand-soft); border-left: 4px solid var(--brand); }
+  .warn { background: var(--c-note-bg); border-left: 4px solid var(--c-note); }
+  .note p, .warn p, .note li, .warn li { font-size: 14.2px; margin: 0; }
+  .note p + p, .warn p + p { margin-top: 8px; }
+
+  /* 流程示意 */
+  .flow { display: flex; flex-direction: column; gap: 8px; max-width: 640px; margin: 18px auto; text-align: center; }
+  .flow > .box { padding: 12px 14px; border: 1px solid var(--brand-line); border-radius: 10px; background: var(--brand-tint); }
+  .flow b { display: block; font-size: 14.5px; color: var(--text); }
+  .flow span { font-size: 13px; color: var(--muted); }
+  .flow-arrow { color: var(--brand-mid); font-size: 20px; line-height: 1.2; }
+
+  /* 小卡片（阶段 / 案例等） */
+  .mini {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px 18px; box-shadow: var(--shadow);
+  }
+  .mini h4 { margin: 0 0 6px; font-size: 15.5px; color: var(--brand); }
+  .mini p { font-size: 14px; margin: 0; }
+  .mini .small { display: block; margin-top: 8px; }
+
+  /* 目录树 */
+  .doc pre {
+    background: var(--brand-tint); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 18px; overflow-x: auto; font-size: 13px; line-height: 1.75;
+    color: var(--text-soft); font-family: ui-monospace, Consolas, "Courier New", monospace;
+    margin: 12px 0 16px;
+  }
+
+  /* 勾选清单 + 进度 */
+  .checklist { margin: 14px 0 6px; }
+  .checklist label {
+    display: flex; gap: 10px; align-items: flex-start; padding: 9px 2px;
+    border-bottom: 1px dashed var(--border); cursor: pointer;
+    font-size: 14.3px; color: var(--text-soft); line-height: 1.7; transition: color .18s;
+  }
+  .checklist label:hover { color: var(--brand); }
+  .checklist input { margin-top: 6px; accent-color: var(--brand); flex-shrink: 0; width: 15px; height: 15px; }
+  .check-foot { display: flex; align-items: center; gap: 14px; margin: 14px 0 6px; flex-wrap: wrap; }
+  .check-foot .progress { flex: 1; min-width: 140px; }
+  .check-foot .count { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .progress { height: 8px; background: var(--brand-soft); border-radius: 20px; overflow: hidden; }
+  .progress span { display: block; height: 100%; width: 0; background: var(--brand); border-radius: 20px; transition: width .25s; }
+  .btn-sm {
+    border: 1px solid var(--border); background: var(--surface); color: var(--text-soft);
+    font-size: 12.5px; padding: 4px 12px; border-radius: 8px; cursor: pointer;
+    font-family: inherit; transition: all .18s;
+  }
+  .btn-sm:hover { border-color: var(--brand); color: var(--brand); }
+
+  /* 14 天计划折叠块 */
+  .day { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin: 10px 0; overflow: hidden; }
+  .day summary {
+    cursor: pointer; padding: 12px 18px; background: var(--brand-tint);
+    font-weight: 650; font-size: 14.8px; color: var(--text); list-style: none;
+  }
+  .day summary::-webkit-details-marker { display: none; }
+  .day summary::before { content: "▸"; color: var(--brand-mid); margin-right: 9px; }
+  .day[open] summary::before { content: "▾"; }
+  .day .content { padding: 4px 18px 14px; border-top: 1px solid var(--border); }
+  .day .content p { margin: 10px 0 0; font-size: 13.3px; color: var(--muted); }
+
+  /* 相关页面 */
+  .crosslinks { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; margin: 30px 0 6px; }
+  .crosslink {
+    display: block; text-decoration: none; background: var(--surface);
+    border: 1px solid var(--border); border-left: 4px solid var(--brand-mid);
+    border-radius: 10px; padding: 16px 20px; transition: all .2s;
+  }
+  .crosslink:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); border-left-color: var(--brand); }
+  .crosslink .cl-label { font-size: 11.5px; letter-spacing: 1.6px; color: var(--muted); font-weight: 700; }
+  .crosslink b { display: block; font-size: 16px; color: var(--brand); margin: 5px 0 4px; }
+  .crosslink .cl-desc { font-size: 13.5px; color: var(--text-soft); }
+
+  /* 锚点定位时避开吸顶导航 */
+  [id^="m-"] { scroll-margin-top: 78px; }
+
+  /* 回到顶部 */
+  .totop {
+    position: fixed; right: 24px; bottom: 24px; width: 42px; height: 42px; z-index: 40;
+    border-radius: 12px; border: 1px solid var(--border); background: var(--surface);
+    color: var(--brand); font-size: 17px; cursor: pointer; box-shadow: var(--shadow-lg);
+    display: none; align-items: center; justify-content: center; font-family: inherit;
+  }
+  .totop.show { display: flex; }
+  .totop:hover { border-color: var(--brand); }
+
+  /* ================= 待办清单 ================= */
+  .panel {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 24px 26px; box-shadow: var(--shadow); margin: 26px 0 4px;
+  }
+  .panel h3 {
+    font-size: 16px; color: var(--brand); font-weight: 700;
+    padding-bottom: 10px; margin-bottom: 14px; border-bottom: 2px solid var(--brand-line);
+  }
+  input[type="text"], input[type="password"] {
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 11px 14px; font-size: 14.5px; color: var(--text); font-family: inherit;
+    outline: none; transition: border-color .18s;
+  }
+  input[type="text"]:focus, input[type="password"]:focus { border-color: var(--brand); }
+  input::placeholder { color: var(--muted); }
+  .btn-main {
+    background: var(--brand); color: #fff; border: 1px solid var(--brand);
+    border-radius: 10px; padding: 11px 22px; font-size: 14.5px; font-weight: 600;
+    cursor: pointer; font-family: inherit; transition: all .18s; flex-shrink: 0;
+  }
+  html[data-theme="dark"] .btn-main { color: #0F151A; }
+  .btn-main:hover { filter: brightness(1.08); }
+  .btn-main:disabled { opacity: .55; cursor: default; filter: none; }
+
+  .add-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .add-row input { flex: 1; min-width: 220px; }
+  .filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 18px 0 6px; }
+  .chip {
+    border: 1px solid var(--border); background: var(--surface); color: var(--text-soft);
+    font-size: 13px; padding: 5px 14px; border-radius: 999px; cursor: pointer;
+    font-family: inherit; transition: all .18s;
+  }
+  .chip:hover { border-color: var(--brand); color: var(--brand); }
+  .chip.active { background: var(--brand); border-color: var(--brand); color: #fff; }
+  html[data-theme="dark"] .chip.active { color: #0F151A; }
+  .filters .spacer { flex: 1; }
+
+  .todo-list { list-style: none; margin: 10px 0 0; padding: 0; }
+  .todo-item { display: flex; gap: 12px; align-items: flex-start; padding: 12px 2px; border-bottom: 1px dashed var(--border); }
+  .todo-item input[type="checkbox"] {
+    margin-top: 6px; width: 16px; height: 16px; accent-color: var(--brand);
+    flex-shrink: 0; cursor: pointer;
+  }
+  .todo-item .txt {
+    flex: 1; font-size: 14.6px; color: var(--text-soft); line-height: 1.7;
+    word-break: break-word; outline: none; border-radius: 6px; padding: 1px 4px; margin-left: -4px;
+  }
+  .todo-item .txt:focus { background: var(--brand-soft); box-shadow: 0 0 0 1px var(--brand-line); }
+  .todo-item.done .txt { color: var(--muted); text-decoration: line-through; }
+  .todo-item .meta { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+  .todo-item .del {
+    border: none; background: transparent; color: var(--muted); cursor: pointer;
+    font-size: 16px; line-height: 1; padding: 4px 8px; border-radius: 6px; font-family: inherit;
+  }
+  .todo-item .del:hover { color: var(--c-must); background: var(--c-must-bg); }
+  .todo-empty { text-align: center; color: var(--muted); font-size: 14px; padding: 28px 0 14px; }
+  .todo-count { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  .sync-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px 16px; margin: 4px 0 16px; }
+  .sync-grid label { display: block; font-size: 12.5px; color: var(--muted); font-weight: 600; margin-bottom: 6px; }
+  .sync-grid input { width: 100%; }
+  .sync-grid .full { grid-column: 1 / -1; }
+  .sync-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+  .sync-state { font-size: 12.5px; color: var(--muted); }
+  .sync-state.ok { color: var(--c-open); }
+  .sync-state.err { color: var(--c-must); }
+
+  /* ---------- 页脚 ---------- */
+  footer {
+    margin-top: 72px; background: var(--brand-deep); color: #AFC3CE;
+    padding: 34px 0; font-size: 13px;
+  }
+  html[data-theme="dark"] footer { background: #0B1014; color: #7E8F99; border-top: 1px solid var(--border); }
+  footer .foot-wrap {
+    max-width: 1080px; margin: 0 auto; padding: 0 24px;
+    display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center;
+  }
+  footer strong { color: #fff; }
+  html[data-theme="dark"] footer strong { color: #D6E3EA; }
+  footer .foot-links a { color: inherit; text-decoration: none; margin-left: 16px; }
+  footer .foot-links a:hover { color: #fff; text-decoration: underline; }
+
+  /* ---------- 响应式 ---------- */
+  @media (max-width: 860px) {
+    .grid.cols-3 { grid-template-columns: 1fr; }
+    .grid.cols-2 { grid-template-columns: 1fr; }
+    .crosslinks { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 760px) {
+    .nav-wrap { height: 58px; gap: 12px; }
+    .menu-btn {
+      display: flex; width: 34px; height: 34px; border-radius: 8px; cursor: pointer;
+      border: 1px solid var(--border); background: var(--surface); color: var(--text-soft);
+      align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0;
+    }
+    .theme-btn { margin-left: auto; }
+    .nav-links {
+      position: absolute; top: 58px; left: 0; right: 0;
+      flex-direction: column; align-items: stretch; gap: 4px; margin: 0;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 10px 16px 16px; box-shadow: var(--shadow-lg);
+      display: none;
+    }
+    .nav-links.open { display: flex; }
+    .nav-links a { padding: 11px 14px; }
+    .hero { padding: 56px 0 52px; }
+    .hero h1 { font-size: 27px; }
+    .hero p.lead { font-size: 15px; }
+    .page-head { padding: 36px 0 24px; }
+    .page-head h1 { font-size: 23px; }
+    .section-desc { padding-left: 0; }
+    .card, .about-card, .tile { padding: 20px 20px; }
+    .updates li { flex-direction: column; gap: 4px; }
+    .updates .date { width: auto; }
+    table { font-size: 13px; }
+    th, td { padding: 8px 10px; }
+    .toc { padding: 18px 20px; }
+    .toc ol { columns: 1; }
+    .totop { right: 16px; bottom: 16px; }
+    .doc h3 { font-size: 16.5px; }
+    .check-foot .progress { min-width: 100%; order: 3; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ==================== 顶部导航 ==================== -->
+<div class="topbar">
+  <div class="nav-wrap">
+    <a class="brand" href="#/home">
+      <span class="mono">N</span>
+      <span>Nuclear Notes<small>个人学习主页</small></span>
+    </a>
+    <nav class="nav-links" id="navLinks">
+      <a href="#/home" data-nav="home">首页</a>
+      <a href="#/research" data-nav="research">文献调研</a>
+      <a href="#/manual" data-nav="manual">行动手册</a>
+      <a href="#/todo" data-nav="todo">待办</a>
+      <a href="#/about" data-nav="about">关于</a>
+    </nav>
+    <button class="theme-btn" id="themeBtn" aria-label="切换主题" title="切换浅色 / 深色">◐</button>
+    <button class="menu-btn" id="menuBtn" aria-label="菜单">☰</button>
+  </div>
+</div>
+
+<main>
+
+<!-- ==================== 子页一：首页 ==================== -->
+<section class="page active" id="page-home">
+
+  <div class="hero">
+    <div class="container">
+      <div class="badge">NUCLEAR ENGINEERING · BNCT</div>
+      <h1>一块核物理方向的自留地<br><span>记文献，记剂量，记想清楚的事</span></h1>
+      <p class="lead">在读研究生，方向是核工程 / 核物理。日常跟 CT 影像、蒙卡剂量计算、体素模型打交道——读过的文献和想明白的问题，都摊在这里。</p>
+      <p class="lead" style="font-size:15px;color:#C9DBE4;">不放简历流水账，只放真正在做的、读过的、想清楚的事。</p>
+      <div class="hero-tags">
+        <span>BNCT 治疗计划系统</span>
+        <span>蒙特卡罗剂量计算</span>
+        <span>CT → 材料赋值</span>
+        <span>重叠 ROI 处理</span>
+      </div>
+      <div class="hero-actions">
+        <a class="btn btn-solid" href="#/manual">看行动手册 →</a>
+        <a class="btn btn-ghost" href="#/research">文献调研</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="block">
+      <div class="block-head">
+        <div class="eyebrow">SECTIONS</div>
+        <h2>站内导航</h2>
+        <p class="sub">两块内容加一个工具：行动手册解决“先做什么、怎么验证”，文献调研解决“读什么”，待办清单管每天要做的事。</p>
+      </div>
+      <div class="grid cols-3">
+        <a class="tile" href="#/manual">
+          <div class="arrow">→</div>
+          <div class="tile-ico">Ⅰ</div>
+          <h3>行动手册</h3>
+          <p>五个方向的解读与选题判断、复现步骤、14 天计划。</p>
+        </a>
+        <a class="tile" href="#/research">
+          <div class="arrow">→</div>
+          <div class="tile-ico">Ⅱ</div>
+          <h3>文献调研</h3>
+          <p>12 篇核心文献、三大支柱、DOI 直达与阅读路线。</p>
+        </a>
+        <a class="tile" href="#/todo">
+          <div class="arrow">→</div>
+          <div class="tile-ico">Ⅲ</div>
+          <h3>待办清单</h3>
+          <p>当天要做的事，支持跨设备同步。</p>
+        </a>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="block-head">
+        <div class="eyebrow">HOW TO USE</div>
+        <h2>这个站怎么用</h2>
+        <p class="sub">三块内容是有顺序的，别从中间开始。</p>
+      </div>
+      <div class="timeline">
+        <div class="step">
+          <div class="step-head">先理方向</div>
+          <div class="step-body">看 <a href="#/manual/m-topics">行动手册的“五个方向”</a> 和 <a href="#/manual/m-deepdive">深入解读</a>，把每个方向在解决什么问题、难度和风险在哪，弄成自己能讲出来的一段话。</div>
+        </div>
+        <div class="step">
+          <div class="step-head">再建地图</div>
+          <div class="step-body">用 <a href="#/research">文献调研</a> 把领域读过一遍——先综述、再方法学地基、最后重叠区那两篇，读完心里有张图。</div>
+        </div>
+        <div class="step">
+          <div class="step-head">然后动手</div>
+          <div class="step-body">回到 <a href="#/manual/m-reproduce">复现现有系统</a>，拿到一套能跑通的基准算例；再按 <a href="#/manual/m-plan">14 天计划</a> 一天一天推进，勾选状态会自动保存。</div>
+        </div>
+        <div class="step">
+          <div class="step-head">每天记一笔</div>
+          <div class="step-body">把当天真正要干的几件小事丢进 <a href="#/todo">待办清单</a>，做完划掉。配上同步之后，家里和公司看到的是同一份。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="block-head">
+        <div class="eyebrow">RECENT</div>
+        <h2>最近更新</h2>
+      </div>
+      <ul class="updates">
+        <li>
+          <span class="date">2026-10-16</span>
+          <span class="what">站点搬到 GitHub Pages；新增 <a href="#/todo">待办清单</a>，支持跨电脑同步。</span>
+        </li>
+        <li>
+          <span class="date">2026-10-15</span>
+          <span class="what">新增 <a href="#/manual">科研入门行动手册</a>，并与文献调研页互相打通。</span>
+        </li>
+        <li>
+          <span class="date">2026-10-15</span>
+          <span class="what">站点改版为单文件多页结构，文献调研页迁入 <a href="#/research">/research</a>。</span>
+        </li>
+        <li>
+          <span class="date">2026-10</span>
+          <span class="what">整理完成 <a href="#/research">BNCT ROI 材料赋值文献调研指南</a>：三大支柱 + 五阶段阅读路线。</span>
+        </li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 子页二：文献调研（原页面内容） ==================== -->
+<section class="page" id="page-research">
+  <div class="container">
+    <div class="page-head">
+      <div class="eyebrow">LITERATURE REVIEW GUIDE · WITH DOI LINKS</div>
+      <h1>BNCT 治疗计划中 ROI 材料赋值 · 文献调研指南</h1>
+      <p>围绕“CT 勾画区域转蒙卡材料时重叠区的赋值策略”这一硕士课题，按三大支柱分类整理的核心文献、DOI 直达链接、阅读路线与获取方式。</p>
+      <p class="small">这是“读什么”这一侧。读完之后该动手做什么，见 <a href="#/manual/m-roi">行动手册 · ROI 重叠问题的最小研究方案</a>。</p>
+    </div>
+
+    <!-- ========== 支柱一 ========== -->
+    <div class="pillar">
+      <div class="section-title">
+        <div class="num">Ⅰ</div>
+        <h2>CT → 材料转换的经典方法学</h2>
+      </div>
+      <p class="section-desc">回答“CT 的 HU 值如何变成蒙卡可用的材料+密度”——这是重叠区研究的前置地基，必须先掌握基础流程。</p>
+
+      <div class="card">
+        <div class="paper-title">Correlation between CT numbers and tissue parameters needed for Monte Carlo simulations of clinical dose distributions</div>
+        <div class="paper-meta">Schneider W, Bortfeld T, Schlegel W. · <span class="journal">Physics in Medicine &amp; Biology</span> · 2000;45(2):459-478 · 被引 1100+</div>
+        <div class="tags"><span class="tag must">必精读</span><span class="tag">奠基之作</span></div>
+        <div class="paper-abstract">提出“化学计量法标定”：先计算 71 种人体组织的理论 HU 值，在 HU 轴上分四段插值，得到每个 HU 值对应的密度与元素组成。所有后续方法均在此框架上改进。</div>
+        <div class="paper-value">你必须精读的第一篇——它讲清“HU→材料”的物理原理与标准做法。</div>
+        <div class="doi-bar">
+          <span class="doi-label">🔗 全文直达：</span>
+          <a class="doi-link iop" href="https://iopscience.iop.org/article/10.1088/0031-9155/45/2/314" target="_blank" rel="noopener">IOP Science（出版商）</a>
+          <a class="doi-link pubmed" href="https://pubmed.ncbi.nlm.nih.gov/10701515" target="_blank" rel="noopener">PubMed 摘要</a>
+          <a class="doi-link wiley" href="https://doi.org/10.1088/0031-9155/45/2/314" target="_blank" rel="noopener">DOI: 10.1088/0031-9155/45/2/314</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="paper-title">Conversion of CT numbers into tissue parameters for Monte Carlo dose calculations: A multi-centre study</div>
+        <div class="paper-meta">Vanderstraeten B, et al. · <span class="journal">Physics in Medicine &amp; Biology</span> · 2007;52(3):539-562 · 被引 149</div>
+        <div class="tags"><span class="tag">多中心对比</span></div>
+        <div class="paper-abstract">比较 14 个材料分区方案（含 10 个骨分区）与传统 5 分区（1 个骨分区）的剂量差异。结论：局部剂量差大多 &lt;5%，但骨内剂量存在系统性偏移。</div>
+        <div class="paper-value">提供“方法差异到底多大”的量化参照——你报告差异的方式可直接学它。</div>
+        <div class="doi-bar">
+          <span class="doi-label">🔗 全文直达：</span>
+          <a class="doi-link iop" href="https://iopscience.iop.org/article/10.1088/0031-9155/52/3/001" target="_blank" rel="noopener">IOP Science（出版商）</a>
+          <a class="doi-link pubmed" href="https://pubmed.ncbi.nlm.nih.gov/17228104" target="_blank" rel="noopener">PubMed 摘要</a>
+          <a class="doi-link wiley" href="https://doi.org/10.1088/0031-9155/52/3/001" target="_blank" rel="noopener">DOI: 10.1088/0031-9155/52/3/001</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="paper-title">Evaluation of the material assignment method used by a Monte Carlo treatment planning system</div>
+        <div class="paper-meta">Isambert A, et al. · <span class="journal">Cancer Radiothérapie</span> · 2009;13(8):744-746</div>
+        <div class="tags"><span class="tag">写作范本</span></div>
+        <div class="paper-abstract">评估 ISOgray TPS 的 HU→材料转换，重点研究空气与肺的分界 HU 值如何确定——用 22 例患者数据确定新分界线，并量化对肺部计划的影响。</div>
+        <div class="paper-value">短小精干的期刊快报，示范“选具体问题 + 量化评估 + 临床影响”的完整论文叙事。</div>
+        <div class="doi-bar">
+          <span class="doi-label">🔗 全文直达：</span>
+          <a class="doi-link pubmed" href="https://pubmed.ncbi.nlm.nih.gov/19854089" target="_blank" rel="noopener">PubMed 摘要</a>
+          <a class="doi-link sciencedirect" href="https://www.sciencedirect.com/science/journal/12783218/13/8" target="_blank" rel="noopener">ScienceDirect（期刊卷期）</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="paper-title">CTC-ask: a new algorithm for conversion of CT numbers to tissue parameters for Monte Carlo dose calculations applying DICOM RS knowledge</div>
+        <div class="paper-meta">Ottosson RO, Behrens CF. · <span class="journal">Physics in Medicine &amp; Biology</span> · 2011;56(22):N263-274</div>
+        <div class="tags"><span class="tag must">与课题最直接相关</span></div>
+        <div class="paper-abstract">提出：不要只看 HU 值，应利用医生勾画的 DICOM RS 结构信息（即 ROI）做“局部受限的材料修正”——在肺内部区域提高肺/空气分界的 HU 门槛，避免将低密度肺误判为空气（误判可导致约 10% 局部剂量误差）。</div>
+        <div class="paper-value">“用 ROI 信息辅助材料赋值”的代表作——你的重叠区研究本质上是这一思路的延伸与精细化。</div>
+        <div class="doi-bar">
+          <span class="doi-label">🔗 全文直达：</span>
+          <a class="doi-link iop" href="https://iopscience.iop.org/article/10.1088/0031-9155/56/22/N01" target="_blank" rel="noopener">IOP Science（出版商）</a>
+          <a class="doi-link pubmed" href="https://pubmed.ncbi.nlm.nih.gov/22024603" target="_blank" rel="noopener">PubMed 摘要</a>
+          <a class="doi-link wiley" href="https://doi.org/10.1088/0031-9155/56/22/N01" target="_blank" rel="noopener">DOI: 10.1088/0031-9155/56/22/N01</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="paper-title">Application of stoichiometric CT number calibration method for elemental composition effect on BNCT dose distribution</div>
+        <div class="paper-meta">Hu N, et al. · <span class="journal">Medical Physics</span> · 2024</div>
+        <div class="tags"><span class="tag">近期验证</span></div>
+        <div class="paper-abstract">将 Schneider 化学计量法在 BNCT 新临床场景下验证与应用，确认经典方法仍在被使用与检验，并引入 Nakao20 新模型。</div>
+        <div class="paper-value">引用它可说明方法到 2024 年依然是主流，佐证方法的持久有效性。</div>
+        <div class="doi-bar">
+          <span class="doi-label">🔗 全文直达：</span>
+          <a class="doi-link wiley" href="https://aapm.onlinelibrary.wiley.com/doi/10.1002/mp.17093" target="_blank" rel="noopener">Wiley（AAPM 出版商）</a>
+          <a class="doi-link pubmed" href="https://pubmed.ncbi.nlm.nih.gov/38669482" target="_blank" rel="noopener">PubMed 摘要</a>
+          <a class="doi-link wiley" href="https://doi.org/10.1002/mp.17093" target="_blank" rel="noopener">DOI: 10.1002/mp.17093</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 支柱二 ========== -->
+    <div class="pillar">
+      <div class="section-title">
+        <div class="num">Ⅱ</div>
+        <h2>重叠 ROI 的临床与算法处理</h2>
+      </div>
+      <p class="section-desc">回答核心问题：<strong>当靶区与危及器官在空间上重叠时，剂量、几何、材料各层面如何处理</strong>——这是课题的直接对标区。</p>
+
+      <div class="card">
+        <div class="paper-title">A predictive model to guide management of the overlap region between target volume and organs at risk in prostate cancer volumetric modulated arc therapy</div>
+        <div class="paper-meta">Mattes MD, et al. · <span class="journal">Journal of Applied Clinical Medical Physics</span> · 2014;15(4):4721</div>
+        <div class="tags"><span class="tag must">研究范式范本</span><span class="tag open">开放获取</span></div>
+        <div class="paper-abstract">用 57 例前列腺癌 VMAT 计划研究 PTV 与直肠/膀胱重叠体积对剂量学结果的影响——发现重叠体积百分比可预测直肠 V45、膀胱 V50 等指标（R²=0.78 / 0.83），并给出“重叠超 3.5% 时 QUANTEC 约束大概率达不到”的截断值。</div>
+        <div class="paper-value">“重叠区剂量归属”的临床量化研究范本——其研究设计（重叠比例→剂量指标→预测截断值）可直接迁移到材料赋值研究。</div>
+        <div class="doi-bar">
+          <span class="doi-label">🔗 全文直达：</span>
+          <a class="doi-link pubmed" href="https://pmc.ncbi.nlm.nih.gov/articles/PMC3977128" target="_blank" rel="noopener">PMC（免费全文）</a>
+          <a class="doi-link wiley" href="https://aapm.onlinelibrary.wiley.com/journal/24734209" target="_blank" rel="noopener">JACMP（期刊主页）</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="paper-title">Exploration of Overlap Volumes for Radiotherapy Plan</div>
+        <div class="paper-meta">arXiv:2112.12590</div>
+        <div class="tags"><span class="tag open">开放获取</span></div>
+        <div class="paper-abstract">提出用可视化分析技术交互式探索靶区与 OAR 的重叠体积，结合剂量与几何特征辅助计划决策。</div>
+        <div class="paper-value">展示了“重叠区”作为研究对象的完整分析框架——几何度量、剂量特征、决策支持。</div>
+        <div class="doi-bar">
+          <span class="doi-label">🔗 全文直达：</span>
+          <a class="doi-link arxiv" href="https://arxiv.org/abs/2112.12590" target="_blank" rel="noopener">arXiv（免费全文）</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="paper-title">Probabilistic treatment planning and margin alternatives in glioblastoma</div>
+        <div class="paper-meta">Welsh D, et al. · <span class="journal">University of Manchester</span> · 2025（学位论文）</div>
+        <div class="tags"><span class="tag">前沿方向</span></div>
+        <div class="paper-abstract">针对 13 例胶质母细胞瘤 PTV 与 PRV（计划危及器官体积）重叠患者，用概率治疗计划替代传统外扩处理重叠——从固定 margin 走向概率分布建模。</div>
+        <div class="paper-value">展示处理“PTV-OAR 重叠”的 2025 年最新思路：从“硬重叠取舍”走向“软概率建模”。</div>
+        <div class="doi-bar">
+          <span class="doi-label">🔗 获取方式：</span>
+          <a class="doi-link arxiv" href="https://www.manchester.ac.uk/study/masters/courses/list/" target="_blank" rel="noopener">Manchester 大学论文库（需校内访问）</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="paper-title">HOW TO HANDLE PTV-OAR OVERLAP（临床物理师博客）</div>
+        <div class="paper-meta">Pichardo-Poenisch Clinical Physics</div>
+        <div class="tags"><span class="tag open">免费阅读</span><span class="tag">临床现状</span></div>
+        <div class="paper-abstract">给出两种实操策略：① 裁剪 PTV 在重叠区的边界（crop margin）；② 在重叠区画同心环，给不同环分配不同剂量目标。</div>
+        <div class="paper-value">最接地气的临床现状总结——快读建立“临床现在怎么做”的直觉，你的研究才有“我在改进什么”的坐标。</div>
+        <div class="doi-bar">
+          <span class="doi-label">🔗 全文直达：</span>
+          <a class="doi-link arxiv" href="https://www.google.com/search?q=Pichardo-Poenisch+PTV+OAR+overlap+clinical+physics" target="_blank" rel="noopener">搜索直达（博客文章）</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 支柱三 ========== -->
+    <div class="pillar">
+      <div class="section-title">
+        <div class="num">Ⅲ</div>
+        <h2>BNCT 专用 TPS 的材料与体素处理</h2>
+      </div>
+      <p class="section-desc">回答“BNCT 领域中体素模型与材料赋值已做到什么程度”——了解现状才能定位自己的创新点。</p>
+
+      <div class="card">
+        <div class="paper-title">Recent research progress of BNCT treatment planning system</div>
+        <div class="paper-meta">Wang Z, et al. · <span class="journal">Nuclear Engineering and Technology</span> · 2025;57(3) · 被引 25</div>
+        <div class="tags"><span class="tag must">最佳入口</span><span class="tag">综述</span><span class="tag open">开放获取</span></div>
+        <div class="paper-abstract">2025 年最新的 BNCT 治疗计划领域综述，覆盖蒙卡剂量计算、体素模型、优化方法等全链条。</div>
+        <div class="paper-value">一篇综述替代 30 篇零散论文——先把领域地图建立起来。</div>
+        <div class="doi-bar">
+          <span class="doi-label">🔗 全文直达：</span>
+          <a class="doi-link sciencedirect" href="https://www.sciencedirect.com/science/article/pii/S173857332400514X" target="_blank" rel="noopener">ScienceDirect（免费全文）</a>
+          <a class="doi-link sciencedirect" href="https://doi.org/10.1016/j.net.2024.10.028" target="_blank" rel="noopener">DOI: 10.1016/j.net.2024.10.028</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="paper-title">Voxel model in BNCT treatment planning: Performance analysis and improvements</div>
+        <div class="paper-meta">González SJ, et al. · <span class="journal">Physics in Medicine &amp; Biology</span> · 2005;50(3):673-690</div>
+        <div class="tags"><span class="tag">BNCT 经典文献</span></div>
+        <div class="paper-abstract">分析 NCTPlan（BNCT 专用 TPS）的 1cm 体素重建方法——包括新材料赋值算法、与体模实测基准比对、浅层剂量精度问题及摆位规则建议。</div>
+        <div class="paper-value">BNCT 语境下“材料赋值 + 体素模型”的经典——把“赋值算法如何验证”讲得非常清楚。</div>
+        <div class="doi-bar">
+          <span class="doi-label">🔗 全文直达：</span>
+          <a class="doi-link iop" href="https://iopscience.iop.org/article/10.1088/0031-9155/50/3/004" target="_blank" rel="noopener">IOP Science（出版商）</a>
+          <a class="doi-link pubmed" href="https://pubmed.ncbi.nlm.nih.gov/15773722" target="_blank" rel="noopener">PubMed 摘要</a>
+          <a class="doi-link wiley" href="https://doi.org/10.1088/0031-9155/50/3/004" target="_blank" rel="noopener">DOI: 10.1088/0031-9155/50/3/004</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="paper-title">Evaluation of a treatment planning system developed for clinical boron neutron capture therapy and validation against an independent Monte Carlo dose calculation system</div>
+        <div class="paper-meta">Hu N, et al. · <span class="journal">Radiation Oncology</span> · 2021;16:207（住友 NeuCure 系统）</div>
+        <div class="tags"><span class="tag open">开放获取</span></div>
+        <div class="paper-abstract">评估住友 NeuCure 系统——全球首个获批作为医疗器械的 BNCT 剂量计算程序。</div>
+        <div class="paper-value">了解“已上市 BNCT TPS 的材料处理现状”——做改进前先知道它现在什么样。</div>
+        <div class="doi-bar">
+          <span class="doi-label">🔗 全文直达：</span>
+          <a class="doi-link pubmed" href="https://pubmed.ncbi.nlm.nih.gov/34952608" target="_blank" rel="noopener">PubMed 摘要</a>
+          <a class="doi-link sciencedirect" href="https://doi.org/10.1186/s13014-021-01968-2" target="_blank" rel="noopener">DOI: 10.1186/s13014-021-01968-2（SpringerOpen 免费）</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="paper-title">Introduction to the Monte Carlo dose engine COMPASS for boron neutron capture therapy</div>
+        <div class="paper-meta">Zhong WB, et al. · <span class="journal">Scientific Reports</span> · 2023;13:9120 · 被引 40</div>
+        <div class="tags"><span class="tag open">开放获取</span><span class="tag">团队代表作</span></div>
+        <div class="paper-abstract">中硼团队开发的 BNCT 专用蒙卡引擎——MPI+OpenMP 并行，效率超过通用 MCNP。</div>
+        <div class="paper-value">该团队“加速计算”底层线的公开代表作，也是 TPS 工程化最新标杆——看它怎么处理材料与体素。</div>
+        <div class="doi-bar">
+          <span class="doi-label">🔗 全文直达：</span>
+          <a class="doi-link nature" href="https://www.nature.com/articles/s41598-023-38648-y" target="_blank" rel="noopener">Nature（免费全文）</a>
+          <a class="doi-link pubmed" href="https://pubmed.ncbi.nlm.nih.gov/37488142" target="_blank" rel="noopener">PubMed 摘要</a>
+          <a class="doi-link nature" href="https://doi.org/10.1038/s41598-023-38648-y" target="_blank" rel="noopener">DOI: 10.1038/s41598-023-38648-y</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="paper-title">Correcting for the heterogeneous boron distribution in a tumor for BNCT dose calculation</div>
+        <div class="paper-meta">Teng YC, et al. · <span class="journal">Medical Physics</span> · 2023;50(11)</div>
+        <div class="tags"><span class="tag">延伸方向</span><span class="tag open">开放获取</span></div>
+        <div class="paper-abstract">处理肿瘤内硼浓度不均匀分布——用影像融合获取异质硼分布，量化其对治疗计划的影响。</div>
+        <div class="paper-value">BNCT 特有维度的赋值——硼浓度赋值。可考虑“硼浓度在重叠区怎么赋”这一延伸课题。</div>
+        <div class="doi-bar">
+          <span class="doi-label">🔗 全文直达：</span>
+          <a class="doi-link pubmed" href="https://pmc.ncbi.nlm.nih.gov/articles/PMC10514037" target="_blank" rel="noopener">PMC（免费全文）</a>
+          <a class="doi-link pubmed" href="https://pubmed.ncbi.nlm.nih.gov/37735579" target="_blank" rel="noopener">PubMed 摘要</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="paper-title">A Patient Specific Treatment Planning System for Boron Neutron Capture Therapy</div>
+        <div class="paper-meta">Toledo MCO · <span class="journal">硕士学位论文</span> · 2020</div>
+        <div class="tags"><span class="tag open">免费下载</span><span class="tag must">最佳参照系</span></div>
+        <div class="paper-abstract">将 DICOM CT 体素化进 MCNP，按组织类型分配硼浓度，用 PET 信息做个体化硼浓度修正。</div>
+        <div class="paper-value">与你处境最相似——硕士论文的体量、结构、工作深度是最好的参照系，重点看章节安排与边界划分。</div>
+        <div class="doi-bar">
+          <span class="doi-label">🔗 全文直达：</span>
+          <a class="doi-link arxiv" href="https://etd.ohiolink.edu/" target="_blank" rel="noopener">OhioLINK ETD（免费下载）</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 阅读路线 ========== -->
+    <div class="pillar">
+      <div class="section-title">
+        <div class="num">Ⅳ</div>
+        <h2>推荐阅读顺序</h2>
+      </div>
+      <p class="section-desc">按认知负担最小、回报最大的顺序推进：</p>
+
+      <div class="timeline">
+        <div class="step">
+          <div class="step-head">第一周 · 建立全景</div>
+          <div class="step-body">Wang 2025 综述（<a href="https://www.sciencedirect.com/science/article/pii/S173857332400514X" target="_blank" rel="noopener">免费全文 →</a>）—— 不求全懂，扫一遍知道领域有哪些环节、哪些方法名字，心里有张地图。</div>
+        </div>
+        <div class="step">
+          <div class="step-head">第二周 · 吃透基础</div>
+          <div class="step-body">Schneider 2000（<a href="https://iopscience.iop.org/article/10.1088/0031-9155/45/2/314" target="_blank" rel="noopener">IOP →</a>，必精读，“四段插值”核心思想必须懂）＋ Vanderstraeten 2007（<a href="https://iopscience.iop.org/article/10.1088/0031-9155/52/3/001" target="_blank" rel="noopener">IOP →</a>，看“方法差异怎么量化”）。</div>
+        </div>
+        <div class="step">
+          <div class="step-head">第三周 · 直击重叠</div>
+          <div class="step-body">Ottosson CTC-ask 2011（<a href="https://iopscience.iop.org/article/10.1088/0031-9155/56/22/N01" target="_blank" rel="noopener">IOP →</a>）＋ Mattes 2014（<a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC3977128" target="_blank" rel="noopener">PMC 免费 →</a>）—— 前者是“用 ROI 做材料修正”的技术路线，后者是“重叠区剂量问题”的临床研究范式，两篇合起来覆盖方法学上游。</div>
+        </div>
+        <div class="step">
+          <div class="step-head">第四周 · 看 BNCT 现状</div>
+          <div class="step-body">González 2005 voxel model 论文（<a href="https://iopscience.iop.org/article/10.1088/0031-9155/50/3/004" target="_blank" rel="noopener">IOP →</a>）＋ Toledo 硕士论文（<a href="https://etd.ohiolink.edu/" target="_blank" rel="noopener">OhioLINK →</a>）—— 看这件事在 BNCT 领域做到哪一步、硕士论文的工作量长什么样。</div>
+        </div>
+        <div class="step">
+          <div class="step-head">之后 · 按需取用</div>
+          <div class="step-body">临床博客当快餐读物，COMPASS 引擎论文（<a href="https://www.nature.com/articles/s41598-023-38648-y" target="_blank" rel="noopener">Nature 免费 →</a>）做进阶读物。</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 获取方式 ========== -->
+    <div class="pillar">
+      <div class="section-title">
+        <div class="num">Ⅴ</div>
+        <h2>全文获取方式</h2>
+      </div>
+      <p class="section-desc">按文献类型分四条路径：</p>
+      <table>
+        <tr><th style="width:22%">路径</th><th>适用文献</th><th style="width:40%">获取渠道</th></tr>
+        <tr>
+          <td><strong>有 DOI 的</strong></td>
+          <td>Schneider 2000、Ottosson 2011、González 2005 等</td>
+          <td>直接点击上方卡片中的 <a href="https://doi.org/10.1088/0031-9155/45/2/314" target="_blank" rel="noopener">DOI 链接</a> / 学校图书馆数据库</td>
+        </tr>
+        <tr>
+          <td><strong>开放获取</strong></td>
+          <td>Wang 2025 综述、COMPASS（Sci Rep）、NeuCure 评估、Mattes 2014（PMC）、Teng 2023（PMC）、arXiv 论文</td>
+          <td>直接点击“免费全文”链接即可下载，无需任何账号</td>
+        </tr>
+        <tr>
+          <td><strong>学位论文</strong></td>
+          <td>Toledo 硕士论文（2020）、Welsh 2025</td>
+          <td>OhioLINK ETD / Manchester 大学论文库（免费下载）</td>
+        </tr>
+        <tr>
+          <td><strong>找不到的</strong></td>
+          <td>个别闭源期刊文章（如 Isambert 2009）</td>
+          <td>带标题去问导师或师兄师姐——团队数据库一般都覆盖，也是“主动要资源”的好信号</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="block" style="padding-top:44px">
+      <div class="card" style="border-left:4px solid var(--brand);">
+        <div class="paper-value" style="margin:0">读完 Schneider · Ottosson · Mattes 三篇主线文献，再见导师时，即可带着“主流方法分哪几类、重叠区临床与算法两层面怎么处理、BNCT 领域还缺什么”的判断去谈课题边界。</div>
+      </div>
+      <div class="crosslinks">
+        <a class="crosslink" href="#/manual/m-deepdive">
+          <span class="cl-label">配套阅读</span>
+          <b>这页清单在课题里的位置</b>
+          <span class="cl-desc">行动手册里“方向四：ROI 重叠时的材料赋值问题”给出了这个问题该怎么拆、怎么验证；这里给的是它的文献底子。</span>
+        </a>
+        <a class="crosslink" href="#/manual/m-roi">
+          <span class="cl-label">下一步</span>
+          <b>读完之后怎么动手</b>
+          <span class="cl-desc">从三个最小测试案例开始，比较不同赋值方法，再把材料映射送进剂量计算看影响。</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 子页三：行动手册 ==================== -->
+<section class="page" id="page-manual">
+  <div class="container">
+    <div class="page-head">
+      <div class="eyebrow">RESEARCH HANDBOOK</div>
+      <h1>BNCT-TPS 研究方向分析与科研入门行动手册</h1>
+      <p>五个研究方向的深入解读、选题判断、与老师沟通的准备、基准算例复现，以及一份 14 天行动计划。</p>
+      <p>这是本站“动手做”的那条线。<a href="#/research">文献调研</a> 那条线解决“读什么”，这一页解决“先做什么、怎么验证”。两份材料互为上下游：先用这里的方法把方向理清，再用那边的清单把领域地图建立起来。</p>
+    </div>
+
+    <div class="doc">
+
+      <div class="toc">
+        <div class="toc-title">目录</div>
+        <ol>
+          <li><a href="#/manual/m-overview">整体路线与阶段目标</a></li>
+          <li><a href="#/manual/m-topics">理解老师提出的五个方向</a></li>
+          <li><a href="#/manual/m-deepdive">五个方向的深入解读与选题判断</a></li>
+          <li><a href="#/manual/m-reading">论文与资料阅读计划</a></li>
+          <li><a href="#/manual/m-meeting">准备与老师讨论课题</a></li>
+          <li><a href="#/manual/m-reproduce">复现现有系统：具体步骤</a></li>
+          <li><a href="#/manual/m-concepts">需要先懂的基本概念</a></li>
+          <li><a href="#/manual/m-roi">ROI 重叠问题的最小研究方案</a></li>
+          <li><a href="#/manual/m-plan">14 天执行计划</a></li>
+          <li><a href="#/manual/m-skills">能力学习顺序与暂缓事项</a></li>
+          <li><a href="#/manual/m-check">阶段成果自检</a></li>
+          <li><a href="#/manual/m-refs">参考资料与使用说明</a></li>
+        </ol>
+      </div>
+
+      <!-- ===== Ⅰ ===== -->
+      <div class="pillar" id="m-overview">
+        <div class="section-title"><div class="num">Ⅰ</div><h2>整体路线与阶段目标</h2></div>
+        <p class="section-desc">先弄清顺序：课题讨论 → 复现系统 → 完成一个小问题 → 定硕士论文主线。</p>
+        <p>不要把科研入门理解为“看几篇论文、学一点编程，然后决定研究什么”。你需要逐步建立从研究问题到程序实现、验证与总结的完整工作方式。</p>
+        <div class="grid cols-2">
+          <div class="mini"><h4>阶段 1｜课题讨论准备</h4><p>弄懂老师提出的方向，形成初步判断，整理要与老师讨论的问题。</p></div>
+          <div class="mini"><h4>阶段 2｜复现现有系统</h4><p>弄清程序结构，运行一个已有算例，知道输入、参数、输出分别是什么。</p></div>
+          <div class="mini"><h4>阶段 3｜完成一个小问题</h4><p>从 ROI 重叠处理、材料映射等边界较清楚的问题切入，完成程序、测试和结果分析。</p></div>
+          <div class="mini"><h4>阶段 4｜确定硕士论文主线</h4><p>根据前期结果、导师意见、代码基础和创新空间，确定后续研究方向。</p></div>
+        </div>
+        <div class="note"><p><strong>核心原则：</strong>现在不需要同时学会所有东西。先能解释课题，再能复现基准算例；这两步完成后，才更适合讨论独立研究问题。</p></div>
+      </div>
+
+      <!-- ===== Ⅱ ===== -->
+      <div class="pillar" id="m-topics">
+        <div class="section-title"><div class="num">Ⅱ</div><h2>理解老师提出的五个方向</h2></div>
+        <p class="section-desc">每个方向先要弄懂它到底在解决什么问题、可能的成果长什么样。</p>
+        <table>
+          <thead><tr><th style="width:22%">方向</th><th>要先弄懂的问题</th><th style="width:32%">可能的成果</th></tr></thead>
+          <tbody>
+            <tr><td>GPU 加速</td><td>粒子输运计算的时间主要花在哪里？哪些环节适合并行或迁移到 GPU？</td><td>加速程序、运行时间比较、精度验证</td></tr>
+            <tr><td>PHITS 底层优化</td><td>哪些计算可以在明确的物理假设下简化？简化会不会影响结果？</td><td>优化模块、误差分析、适用范围说明</td></tr>
+            <tr><td>深度学习 + 多射野优化</td><td>深度学习和优化算法各负责什么？输入输出是什么？</td><td>剂量预测模型、优化程序、对照结果</td></tr>
+            <tr><td>ROI 重叠与材料赋值</td><td>一个体素匹配多个结构时，材料、密度、硼浓度和标签如何分别处理？</td><td>赋值模块、方法比较、剂量学分析</td></tr>
+            <tr><td>OpenMC 剂量引擎</td><td>如何用 OpenMC 完成所需输运与剂量计算，并和 PHITS 做公平对照？</td><td>剂量计算模块、基准验证、性能比较</td></tr>
+          </tbody>
+        </table>
+
+        <h3>2.1　GPU 加速：要查什么</h3>
+        <ul>
+          <li>目前 PHITS 计算时间主要花在哪里：粒子输运、几何搜索、源粒子抽样，还是其他环节？</li>
+          <li>实验室是否已有 GPU 代码？它是可运行的完整程序，还是只有部分模块？</li>
+          <li>现有 CPU 并行程序能否先获得足够的加速效果？</li>
+        </ul>
+        <p>PHITS 已有 MPI、OpenMP 等并行方式，并非完全不能利用多核 CPU。因此，是否迁移 GPU 应由基准测试和瓶颈分析决定，而不是先假定 GPU 一定更好。</p>
+        <p><strong>当前不必做：</strong>不要马上学习 CUDA 或通读 PHITS 全部源码。先搞清楚现有程序的计算瓶颈和实验室的已有基础。</p>
+
+        <h3>2.2　PHITS 底层输运过程优化：要查什么</h3>
+        <ul>
+          <li>老师说的“不必要输运过程”具体指哪个过程？</li>
+          <li>为什么认为它对当前研究目标影响有限？依据是什么？</li>
+          <li>这是已有物理近似的应用，还是需要提出新方法？</li>
+          <li>如何用参考计算或其他证据验证简化前后的剂量差异？</li>
+        </ul>
+        <div class="warn"><p>不能把这个方向理解成“删除几个看起来没用的选项”。需要明确物理假设、适用条件和可接受误差。若老师尚未指出具体环节，先记为待确认问题，不要自行猜测。</p></div>
+
+        <h3>2.3　深度学习 + 多射野优化：要查什么</h3>
+        <div class="flow">
+          <div class="box"><b>输入数据</b><span>患者模型、射野配置、参考剂量等</span></div>
+          <div class="flow-arrow">↓</div>
+          <div class="box"><b>深度学习模型</b><span>在适用条件下快速预测剂量</span></div>
+          <div class="flow-arrow">↓</div>
+          <div class="box"><b>优化算法</b><span>搜索射野组合、权重或其他计划参数</span></div>
+          <div class="flow-arrow">↓</div>
+          <div class="box"><b>独立验证</b><span>用可靠的剂量计算结果检查优化方案</span></div>
+        </div>
+        <ul>
+          <li>现成的模型是什么？代码在哪里？</li>
+          <li>模型使用什么数据训练，输入和输出分别是什么？</li>
+          <li>参考剂量能否直接用于优化算法的评价？</li>
+          <li>优化变量是射野权重、角度、数量，还是其他参数？</li>
+        </ul>
+        <p>“模型已经有了”不等于可以直接用于课题。如果训练数据、输入格式与实际问题不匹配，仍可能需要额外工作。还要确认硕士工作与实验室现有博士论文成果的区别，避免单纯重复实现。</p>
+
+        <h3>2.4　ROI 重叠与材料赋值：要查什么</h3>
+        <p>假设一个体素既属于脑组织 ROI，又位于肿瘤 ROI。程序发现它匹配两个区域后，需要明确分别对哪些属性赋值。</p>
+        <ul>
+          <li><strong>哪些属性冲突了？</strong>例如组织材料、密度、硼浓度、结构标签。它们可能有不同的数据来源和赋值规则。</li>
+          <li><strong>当前程序如何处理？</strong>是按优先级覆盖、限制结构互斥，还是把不同属性分别处理？是否存在未赋值或错误覆盖？</li>
+          <li><strong>不同处理方法有什么影响？</strong>先检查材料映射是否合理，再检查它对输运和剂量结果的影响。</li>
+        </ul>
+        <div class="note"><p><strong>可以向老师表达的初步观点：</strong>我倾向于先查清 ROI 标签、组织材料、密度和硼浓度各自的赋值规则，再判断是否确实存在重叠冲突；之后通过简单体模比较不同处理方法，最后用剂量结果检验影响。</p></div>
+
+        <h3>2.5　OpenMC 剂量引擎：要查什么</h3>
+        <p>OpenMC 是另一套蒙特卡罗中子与光子输运程序。其官方文档支持固定源计算、几何与材料建模，以及通过 tally 获取通量、反应率等量。</p>
+        <ul>
+          <li>PHITS 案例是否有完整的源项、材料、几何和计算条件？</li>
+          <li>OpenMC 现有代码做到哪一步：简单体模、患者影像，还是已经有部分剂量流程？</li>
+          <li>BNCT 需要的剂量组分分别怎样计算？</li>
+          <li>用什么基准案例判断 OpenMC 与 PHITS 的结果是否一致？</li>
+          <li>在精度相近的条件下，是否还要比较运行效率？</li>
+        </ul>
+        <div class="warn"><p>不能简单把创新点定为“别人用 PHITS，我们改用 OpenMC”。已有研究已涉及基于 MeVisLab 与 OpenMC 的 BNCT 剂量模拟系统，包括 HU 到材料映射、可变网格等功能。硕士课题需要找到明确差异，例如材料映射与验证、剂量组分、特定患者模型适配或性能改进。</p></div>
+      </div>
+
+      <!-- ===== Ⅲ ===== -->
+      <div class="pillar" id="m-deepdive">
+        <div class="section-title"><div class="num">Ⅲ</div><h2>五个方向的深入解读与选题判断</h2></div>
+        <p class="section-desc">五个方向背后的研究问题、可能的实现步骤、验证要求与入门风险。</p>
+        <p>这一部分建议先当作讨论材料，而不是立刻决定最终硕士课题。你真正要确认的是：实验室已经做到哪里、你会接手哪个具体模块、用什么证据证明改进有效。</p>
+
+        <h3>3.1　先建立对 BNCT-TPS 的整体认识</h3>
+        <p>BNCT 治疗计划系统（TPS）不是简单地“调用一个软件算出剂量”。简化来看，它需要把患者影像、结构轮廓、组织材料、束流源项、粒子输运计算和剂量评价组织成一条可以重复运行的工作流。</p>
+        <div class="flow">
+          <div class="box"><b>患者影像与结构数据</b><span>CT / MRI、ROI、靶区与危及器官</span></div>
+          <div class="flow-arrow">↓</div>
+          <div class="box"><b>体素建模与属性映射</b><span>组织材料、密度、结构标签、硼浓度等</span></div>
+          <div class="flow-arrow">↓</div>
+          <div class="box"><b>粒子输运模拟</b><span>PHITS 或 OpenMC 等蒙特卡罗程序</span></div>
+          <div class="flow-arrow">↓</div>
+          <div class="box"><b>剂量后处理与评价</b><span>剂量组分、归一化、三维剂量分布与统计不确定度</span></div>
+          <div class="flow-arrow">↓</div>
+          <div class="box"><b>治疗计划优化与验证</b><span>射野组合、权重、靶区覆盖与危及器官约束</span></div>
+        </div>
+        <p class="small">这是便于理解方向关系的概念流程。真实系统的调用顺序、数据格式和模块划分，必须根据实验室的代码、输入输出文件与实际操作确认；不要仅凭这张图推断现有程序的实现方式。</p>
+
+        <h3>3.2　方向一：GPU 加速蒙特卡罗计算</h3>
+        <h4>研究究竟在解决什么问题？</h4>
+        <p>蒙特卡罗方法通过模拟大量粒子的运动与相互作用，统计获得通量、反应率或剂量等结果。对于三维患者体素模型，粒子可能经历多次碰撞、散射、吸收或其他反应。GPU 能并行执行大量计算，因此可能缩短运行时间，但这不等于把 CPU 程序简单搬到显卡上就能获得高效加速。</p>
+        <p>粒子输运中存在复杂条件判断、几何边界搜索、粒子状态更新与剂量统计。不同粒子的路径和计算分支可能差异很大，因此还要考虑并行算法、内存布局、线程分歧、统计数据同步以及计算结果的一致性。PHITS 官方手册也说明其已有 MPI、OpenMP 等并行计算方式，因此需要先用基准测试确认现有程序的瓶颈。</p>
+        <h4>一个完整研究至少需要回答三个问题</h4>
+        <ul>
+          <li><strong>怎么加速：</strong>找出耗时最大的环节，界定需要优化或移植的模块。</li>
+          <li><strong>加速多少：</strong>在尽可能相同的计算条件下，比较不同实现、线程配置或设备配置的运行时间。</li>
+          <li><strong>精度是否保持：</strong>对照通量、剂量分布、统计不确定度和适用的参考结果，说明加速后误差处于什么范围。</li>
+        </ul>
+        <div class="warn"><p><strong>入门判断：高难度。</strong>若目前还不熟悉底层代码和并行编程，完整开发 GPU 输运程序很容易让大量时间花在编译、移植和调试上，留给物理验证的时间反而不足。除非老师已有可运行的 GPU 框架并明确了你负责的模块，否则暂不建议作为第一个独立课题。</p></div>
+
+        <h3>3.3　方向二：优化 PHITS 底层输运过程，减少不必要的计算</h3>
+        <h4>它与 GPU 加速有什么区别？</h4>
+        <p>GPU 加速主要想让计算执行得更快；输运过程优化则试图在明确的研究条件下减少计算本身。它的出发点可能是：某个特定过程对关注的剂量指标影响很小，是否可以在经过物理分析与验证后采用近似处理。</p>
+        <p>关键是，“不重要”不能凭直觉判断。BNCT 的剂量分量与硼俘获，以及氢、氮相关反应和中子、光子输运等物理过程有关。某一过程在特定场景中的贡献较小，不等于在其他材料、能谱、几何或剂量指标下也可以忽略。</p>
+        <h4>严谨的最小研究设计</h4>
+        <ol>
+          <li><strong>建立基准：</strong>用未经简化的原始流程得到参考结果，并保存输入、版本、日志与统计误差。</li>
+          <li><strong>提出候选简化：</strong>说明对应的物理机制、假设和预期适用范围。</li>
+          <li><strong>单项改变：</strong>一次只调整一个过程，记录计算时间和结果差异。</li>
+          <li><strong>扩大验证：</strong>在不同体模、材料或束流条件下检查误差是否仍可接受。</li>
+          <li><strong>限定结论：</strong>写清加速收益、精度变化、适用范围与不适用情形。</li>
+        </ol>
+        <div class="warn"><p><strong>入门判断：难度高。</strong>难点不仅在写代码，更在于理解物理过程、提出合理近似并证明它的边界。在老师没有明确指出具体输运环节前，不要自行猜测要删除什么，也不要把“删掉几个选项”当成研究方案。</p></div>
+
+        <h3>3.4　方向三：深度学习结合 BNCT 多射野优化</h3>
+        <h4>多射野优化在做什么？</h4>
+        <p>可以把不同射野理解为从不同方向对患者照射。每个射野的剂量分布不同。研究问题可能是：选择哪些射野、各自权重是多少，才能在满足危及器官约束的前提下改善靶区覆盖、剂量均匀性或其他计划指标？</p>
+        <p>遗传算法（GA）是一种搜索优化方法，可以搜索射野组合或权重；其他优化器也可能适用。深度学习若被加入，通常应有明确职责，例如在适用范围内快速预测剂量，减少反复调用蒙特卡罗计算的成本。最后仍需使用可靠的物理计算对候选方案作独立验证。</p>
+        <div class="flow">
+          <div class="box"><b>参考剂量与训练数据</b><span>由已有、可信的计算流程产生</span></div>
+          <div class="flow-arrow">↓</div>
+          <div class="box"><b>深度学习剂量预测模型</b><span>仅在训练数据覆盖且经过验证的适用范围内使用</span></div>
+          <div class="flow-arrow">↓</div>
+          <div class="box"><b>优化算法搜索计划</b><span>射野组合、权重或其他清晰定义的变量</span></div>
+          <div class="flow-arrow">↓</div>
+          <div class="box"><b>独立物理验证</b><span>重新计算关键候选方案并评价剂量误差</span></div>
+        </div>
+        <h4>为什么不能为了“前沿”而直接加入深度学习？</h4>
+        <p>如果每个射野的剂量分布已经计算完毕，而计划之间只改变射野权重，在适用的剂量线性叠加假设下，就可能直接组合各射野剂量矩阵并运行优化算法；此时增加深度学习未必能带来足够收益。只有当模型能解决明确瓶颈，例如减少重复蒙特卡罗计算或可靠预测新配置，才有充分理由加入。</p>
+        <p>课题组的博士论文初稿中已涉及物理约束的蒙特卡罗—神经网络耦合、多射野遗传算法优化及相关 GPU 加速内容。因此需要先确认硕士工作与现有成果的区别，而不是单纯把现成模型和 GA 拼在一起就认定有创新。</p>
+        <p>讨论时应查明：现成模型是什么、代码在哪里、训练数据的输入输出是什么、模型适用于哪些场景、优化变量究竟是什么、加入深度学习相较于直接优化获得了什么可量化收益，以及最终如何检查剂量误差。</p>
+        <div class="note"><p><strong>入门判断：中等至较高。</strong>若实验室已有可运行模型、匹配的数据和清楚划分的子问题，可以考虑；若这些都需要从头准备，先不要把它定为第一个独立课题。</p></div>
+
+        <h3>3.5　方向四：ROI 重叠时的材料赋值问题</h3>
+        <h4>先区分不同属性</h4>
+        <p>ROI（Region of Interest，感兴趣区域）可用于标记肿瘤、正常组织或危及器官等结构。肿瘤 ROI 位于脑组织内部时，空间上可能与脑组织区域重叠。同一个体素匹配多个 ROI，并不自动意味着所有属性都必须相互覆盖。</p>
+        <p>至少要区分<strong>结构标签、组织材料、密度和硼浓度</strong>。这些属性相关但不等同，可能来自不同数据源并遵循不同规则。例如，CT/HU 可用于组织材料与密度映射，ROI 可用于识别结构或指定某些区域的硼浓度参数。需要先确定每个属性的物理含义和权威来源，再判断是否存在真正的冲突。</p>
+        <h4>可以研究的处理策略</h4>
+        <table>
+          <thead><tr><th style="width:20%">策略</th><th>基本思想</th><th style="width:24%">优势</th><th style="width:26%">需要检查的风险</th></tr></thead>
+          <tbody>
+            <tr><td>明确优先级</td><td>为具有冲突的覆盖规则设定预先声明的优先级。</td><td>实现简单，容易测试和说明。</td><td>优先级不当可能造成错误覆盖或结构信息丢失。</td></tr>
+            <tr><td>分离不同属性</td><td>分别处理组织材料、密度、ROI 标签和硼浓度。</td><td>属性语义清楚，更便于追踪和独立验证。</td><td>需要弄清现有系统各属性的数据来源、接口与组合规则。</td></tr>
+            <tr><td>部分体积或亚体素处理</td><td>在网格跨越组织边界且确有需要时，细化对边界的表达。</td><td>可能更细致地表达边界结构。</td><td>计算成本、几何表示及材料混合规则更复杂，不应无必要地引入。</td></tr>
+          </tbody>
+        </table>
+        <h4>如何把它发展成可验证的研究？</h4>
+        <ol>
+          <li><strong>实现与检测：</strong>识别哪些体素重叠、被采用何种规则赋值，有无未赋值或不合理覆盖。</li>
+          <li><strong>比较方法：</strong>在人工构造的简单体模中比较两到三种有依据的策略。</li>
+          <li><strong>剂量学验证：</strong>将不同映射结果送入剂量计算，判断材料或硼浓度变化是否影响相关剂量组分和评价指标。</li>
+        </ol>
+        <p>最小问题可以表述为：<em>在当前 BNCT-TPS 中，不同 ROI 重叠处理方法对材料映射与最终剂量计算分别有什么影响？在给定使用场景下，哪种方法更合适？</em> 如果工作只停留在几行优先级代码，课题可能偏小；如果能完成算法、系统测试、方法对照与剂量影响分析，研究链条会更完整。</p>
+        <div class="note"><p><strong>入门判断：较低至中等，适合先切入。</strong>但前提是先确认当前程序确实存在尚未解决的问题。若现有系统已把不同属性处理得很完善，就不要人为制造一个研究问题。</p></div>
+
+        <h3>3.6　方向五：用 OpenMC 构建 BNCT 剂量引擎</h3>
+        <p>OpenMC 是开源的蒙特卡罗中子与光子输运程序，支持固定源计算、几何与材料建模，以及通过 tally 统计通量、反应率等物理量。它可以作为另一个输运引擎，但“用 OpenMC 得到一个输出文件”并不等于已经完成 BNCT 剂量引擎。</p>
+        <p>BNCT 的工作流可能需要患者体素几何、材料、源项、输运计算、反应率或通量处理、剂量转换、归一化和多个剂量组分的后处理。不能把总中子通量直接等同于总剂量；每个剂量组分的计算定义、数据来源、单位和验证依据都必须明确。</p>
+        <h4>一个相对稳妥的分阶段路径</h4>
+        <table>
+          <thead><tr><th style="width:26%">阶段</th><th>工作重点</th><th style="width:38%">应该得到什么证据</th></tr></thead>
+          <tbody>
+            <tr><td>简单体模</td><td>先处理几何、材料、源项、tally、单位与归一化。</td><td>结果能与可靠参考值或基准算例相比较。</td></tr>
+            <tr><td>异质体模与属性映射</td><td>增加不同组织材料与几何边界，验证材料分配和后处理。</td><td>不同材料下的计算流程可追踪，误差有解释。</td></tr>
+            <tr><td>患者模型与剂量比较</td><td>接入患者影像/ROI 工作流，并与 PHITS 的基准结果对照。</td><td>对比剂量组分、差异、统计不确定度与运行成本。</td></tr>
+          </tbody>
+        </table>
+        <p>2025 年公开的研究已报告基于 MeVisLab 与 OpenMC 构建 BNCT 剂量模拟系统，并涉及 DICOM/结构接口、HU 到材料映射和可变网格计算。因此，单纯提出“把 PHITS 换成 OpenMC”并不自动构成创新；需要先核实已有研究的实现范围，再界定具体差异，例如剂量组分的验证、材料映射、与既有 PHITS 工作流的公平对标或明确的性能改进。</p>
+        <div class="note"><p><strong>入门判断：中等至较高。</strong>路线较清楚，但系统集成和物理验证工作量较大。前提是实验室能提供基准算例、源项与材料资料、参考结果和可用的运行环境。如果都要从零搭建，必须重新估计时间和风险。</p></div>
+
+        <h3>3.7　五个方向的横向比较</h3>
+        <table>
+          <thead><tr><th style="width:20%">方向</th><th style="width:14%">起步难度</th><th>主要风险</th><th style="width:28%">当前建议</th></tr></thead>
+          <tbody>
+            <tr><td>ROI 重叠与材料赋值</td><td>较低至中等</td><td>问题可能过小；若没有剂量验证，研究容易停留在代码功能层面。</td><td><strong>优先调查、作为第一个小闭环候选。</strong></td></tr>
+            <tr><td>OpenMC 剂量引擎</td><td>中等至较高</td><td>程序集成、剂量组分、材料映射、基准对标与物理验证。</td><td>适合在掌握基准系统后逐步扩展。</td></tr>
+            <tr><td>深度学习 + 多射野优化</td><td>中等至较高</td><td>既有研究重复、模型数据不匹配、创新点或模型收益不明确。</td><td>有可运行代码和明确缺口时再考虑。</td></tr>
+            <tr><td>PHITS 输运过程简化</td><td>高</td><td>近似可能引入系统性误差，适用范围难以证明。</td><td>需要较强的物理分析与严格验证，暂不优先。</td></tr>
+            <tr><td>GPU 输运加速</td><td>很高</td><td>底层开发量大、并行移植复杂，精度验证成本高。</td><td>除非有成熟框架和清晰任务，否则暂不优先。</td></tr>
+          </tbody>
+        </table>
+        <p>这张表是按“从工程实现切入、科研经验尚浅”的起步路径给出的工作建议，不是学术价值排名。课题是否合适，最终由实验室基础、导师意见、可用数据、可验证性和实际创新空间共同决定。</p>
+      </div>
+
+      <!-- ===== Ⅳ ===== -->
+      <div class="pillar" id="m-reading">
+        <div class="section-title"><div class="num">Ⅳ</div><h2>论文与资料阅读计划</h2></div>
+        <p class="section-desc">先精读少量核心资料，重点理解已有工作做到哪里、还缺什么。</p>
+        <p>不要把科研入门等同于读完大量论文。</p>
+        <h3>建议阅读顺序</h3>
+        <ol>
+          <li><strong>老师发来的博士毕业论文初稿 V3（最优先）</strong><br>先读摘要、目录、绪论中的 TPS 介绍，再看与 PCMC-NN、多射野优化、GPU 加速等方向相关的章节。重点记录系统如何运行、算法解决什么问题、实验如何设置、结果如何验证，以及作者指出的不足。</li>
+          <li><strong>基于 MeVisLab 与 OpenMC 的 BNCT 剂量模拟系统研究</strong><br>目的不是照抄系统，而是了解已有工作做到什么程度。重点看方法、系统架构、材料映射、剂量计算和验证部分。<br><a href="https://www.hplpb.com.cn/en/article/doi/10.11884/HPLPB202537.250246" target="_blank" rel="noopener">阅读论文页面 →</a></li>
+          <li><strong>OpenMC 官方文档</strong><br>先看安装指南、基础示例、几何与材料、固定源计算、tally 和结果读取。目标是知道最简单的程序需要什么输入、怎样运行、输出什么。<br><a href="https://docs.openmc.org/en/stable/" target="_blank" rel="noopener">OpenMC 官方文档 →</a></li>
+          <li><strong>PHITS 用户手册</strong><br>只围绕现有案例需要的内容阅读：输入文件格式、几何检查、源项检查、tally 与并行计算，不必试图一次掌握所有功能。<br><a href="https://phits.jaea.go.jp/manual/PHITS-en/" target="_blank" rel="noopener">PHITS 官方手册 →</a></li>
+        </ol>
+        <h3>每篇论文都填写同一张读书卡</h3>
+        <table>
+          <tr><th style="width:28%">项目</th><th>需要回答的问题</th></tr>
+          <tr><td>它解决的问题</td><td>作者为什么要做这项研究？</td></tr>
+          <tr><td>以前有什么不足</td><td>现有方法哪里不够好？</td></tr>
+          <tr><td>作者怎么做的</td><td>用了什么程序、算法和数据？</td></tr>
+          <tr><td>结果是什么</td><td>作者用哪些指标证明方法有效？</td></tr>
+          <tr><td>有什么不足</td><td>适用条件、误差或作者指出的局限是什么？</td></tr>
+          <tr><td>对我有什么用</td><td>它能帮我确定什么、排除什么或改进什么？</td></tr>
+        </table>
+        <p>如果读完只会说“作者用了深度学习，结果很好”，说明还没有真正读懂。能解释问题、方法、对照、结论和可继续研究的内容，才算读出了价值。</p>
+        <div class="crosslinks">
+          <a class="crosslink" href="#/research">
+            <span class="cl-label">本站另一条线</span>
+            <b>ROI 材料赋值文献调研</b>
+            <span class="cl-desc">12 篇核心文献、三大支柱、DOI 直达链接与五阶段阅读路线——是这份阅读计划在具体课题上的落地。</span>
+          </a>
+          <a class="crosslink" href="#/manual/m-reproduce">
+            <span class="cl-label">下一步</span>
+            <b>复现现有系统</b>
+            <span class="cl-desc">读完之后该动手了：拿到一套能跑通的基准算例，原样复现并记录。</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- ===== Ⅴ ===== -->
+      <div class="pillar" id="m-meeting">
+        <div class="section-title"><div class="num">Ⅴ</div><h2>准备与老师讨论课题</h2></div>
+        <p class="section-desc">把已知信息、个人判断和待确认问题分开写，未知处直接标注“待向老师确认”。</p>
+        <p>建议先完成一份《BNCT-TPS 课题调研与讨论记录》。</p>
+        <h3>课题比较表</h3>
+        <table>
+          <tr><th style="width:28%">比较维度</th><th>需要填写的内容</th></tr>
+          <tr><td>研究目标</td><td>我要改善或解决什么问题？</td></tr>
+          <tr><td>现有基础</td><td>实验室已有代码、数据或模型吗？</td></tr>
+          <tr><td>我的工作</td><td>究竟要写什么程序、改什么模块？</td></tr>
+          <tr><td>验证方法</td><td>如何判断自己做对了？</td></tr>
+          <tr><td>创新点</td><td>与现有论文和实验室成果有什么不同？</td></tr>
+          <tr><td>风险</td><td>哪件事最可能花很多时间却做不出来？</td></tr>
+          <tr><td>最小成果</td><td>至少完成什么，才能证明课题有进展？</td></tr>
+        </table>
+        <h3>正式沟通时建议问的问题</h3>
+        <div class="mini" style="padding:20px 22px">
+          <h4>A. 确定研究问题</h4>
+          <p>“老师，这几个方向中，哪些是目前已经完成的工作，哪些是系统里还没有解决好的实际问题？”</p>
+          <p>“如果以 ROI 材料赋值或 OpenMC 剂量引擎为主线，您最希望解决的具体问题是什么？”</p>
+          <h4>B. 确认代码与数据</h4>
+          <p>“目前哪些代码可以直接使用？有没有能正常运行的基准算例，以及对应的标准输出结果？”</p>
+          <p>“是否有已经验证过的患者体模、材料库、源项文件和 PHITS 计算结果？”</p>
+          <h4>C. 确定验证标准</h4>
+          <p>“课题最后用什么指标评价？除了程序能运行，还需要达到什么精度、速度或功能要求？”</p>
+          <p>“是否已经有计划采用的对照方法和验收标准？”</p>
+          <h4>D. 确认创新边界</h4>
+          <p>“考虑到相关 OpenMC 系统和现有博士论文已完成的工作，硕士阶段希望我在哪个具体问题上形成独立贡献？”</p>
+          <h4>E. 确认工作边界</h4>
+          <p>“我可以先复现一个现有案例，再逐步开展自己的模块研究吗？您希望我在哪个阶段交付什么结果？”</p>
+        </div>
+        <p>这些问题比单纯问“老师，我做哪个方向比较好”更有效。你是在与老师一起确定一个能完成的研究问题，而不是等老师替你安排整条路线。</p>
+      </div>
+
+      <!-- ===== Ⅵ ===== -->
+      <div class="pillar" id="m-reproduce">
+        <div class="section-title"><div class="num">Ⅵ</div><h2>复现现有系统：具体步骤</h2></div>
+        <p class="section-desc">这一步的目标只有一个：让别人的代码在你这儿跑出和他一样的结果。</p>
+
+        <h3>任务 1　建立科研工作目录</h3>
+        <pre>BNCT_TPS_Research/
+├── 00_课题沟通
+├── 01_文献与读书卡
+├── 02_现有系统说明
+├── 03_原始基准算例
+├── 04_测试与实验
+├── 05_结果图表
+├── 06_运行日志
+├── 07_每周总结
+└── 08_论文草稿</pre>
+        <p>另建一个表格，记录实验名称、目的、输入文件、修改内容、运行时间、输出位置和结论。</p>
+        <div class="note"><p><strong>重要原则：</strong>原始算例、原始结果和修改后的实验文件必须分开保存。每次改参数，都要能追溯到具体输入文件版本。</p></div>
+
+        <h3>任务 2　向实验室获取一套能运行的基准算例</h3>
+        <div class="checklist" id="resourceChecklist">
+          <label><input type="checkbox">现有 TPS 的代码或可运行程序，以及必要的使用说明</label>
+          <label><input type="checkbox">一个已经成功运行的 PHITS 输入算例</label>
+          <label><input type="checkbox">算例依赖的几何、材料、源项和其他数据文件</label>
+          <label><input type="checkbox">该算例对应的原始输出结果</label>
+          <label><input type="checkbox">运行环境、程序版本、运行命令和依赖说明</label>
+          <label><input type="checkbox">已知正确的参考结果或验证标准</label>
+          <label><input type="checkbox">数据流说明：从输入到剂量输出经过哪些步骤</label>
+        </div>
+        <p>拿到资料时务必问清楚：从哪个文件或命令开始运行？运行成功会生成哪些文件？已经运行成功的参考结果在哪里？</p>
+        <p>你需要的是一套已经跑通的基准案例，而不是一堆不知道如何使用的代码。如果不知道入口、依赖和正常结果，容易陷入漫无目的的阅读和修改。</p>
+
+        <h3>任务 3　画出实际系统流程图</h3>
+        <div class="flow">
+          <div class="box"><b>医学影像与结构数据</b><span>CT、ROI、组织信息</span></div>
+          <div class="flow-arrow">↓</div>
+          <div class="box"><b>数据处理与模型建立</b><span>材料映射、体素模型、源项配置</span></div>
+          <div class="flow-arrow">↓</div>
+          <div class="box"><b>PHITS 计算</b><span>粒子输运及相关物理量统计</span></div>
+          <div class="flow-arrow">↓</div>
+          <div class="box"><b>剂量后处理</b><span>通量或反应率处理、剂量转换与归一化</span></div>
+          <div class="flow-arrow">↓</div>
+          <div class="box"><b>剂量分布和评价结果</b><span>三维剂量、靶区指标及危及器官指标</span></div>
+        </div>
+        <p class="small">这只是概念示意图，不代表现有程序一定采用完全相同的调用顺序。真正流程需要根据程序入口、输入输出文件和实际调用关系确认。</p>
+        <p>把每个流程框对应到真实文件或函数。你要能回答：哪段代码读取 CT？哪个脚本生成 PHITS 输入？哪个程序启动 PHITS？哪个文件保存剂量结果？哪个函数完成剂量转换？找不到就记入待确认清单，不要猜。</p>
+
+        <h3>任务 4　第一次运行——原样复现结果</h3>
+        <ol>
+          <li>将已成功运行的基准算例复制到实验目录，保留原始版本不动。</li>
+          <li>按实验室说明启动程序，不要一开始就改粒子数、材料、源项或几何参数。</li>
+          <li>保存运行命令、开始和结束时间、终端日志、程序版本与输出文件。</li>
+          <li>检查程序是否正常结束，结果文件是否包含有效数据，而不只是“生成了文件”。</li>
+          <li>将自己的结果与参考结果比较，记录一致处、差异和暂时不理解的地方。</li>
+        </ol>
+        <p>若运行失败，先保存完整错误信息，标注出错步骤、输入文件和环境。不要一次安装一堆软件、随意改配置或同时修改多个程序文件，否则很难定位原因。</p>
+
+        <h3>任务 5　运行成功后，至少记录这些内容</h3>
+        <table>
+          <tr><th style="width:38%">记录项</th><th>原因</th></tr>
+          <tr><td>运行命令与程序版本</td><td>确保以后能够重复运行</td></tr>
+          <tr><td>源项及关键计算参数</td><td>明确模拟的物理条件</td></tr>
+          <tr><td>运行时间与资源使用情况</td><td>作为后续性能比较的基准</td></tr>
+          <tr><td>输出的剂量或通量结果</td><td>明确程序实际算出了什么</td></tr>
+          <tr><td>统计不确定度</td><td>判断结果的统计可靠性</td></tr>
+          <tr><td>与参考结果的比较</td><td>检验是否真正复现成功</td></tr>
+        </table>
+        <div class="warn"><p>程序成功运行不等于结果正确；结果与已有输出看起来相似，也不等于完成了充分的物理验证。BNCT 涉及硼、氮、氢和光子等剂量组分，组分的物理含义与计算方法并不完全相同。</p></div>
+      </div>
+
+      <!-- ===== Ⅶ ===== -->
+      <div class="pillar" id="m-concepts">
+        <div class="section-title"><div class="num">Ⅶ</div><h2>先掌握的八个基本概念</h2></div>
+        <p class="section-desc">这八个词在之后的每一次讨论里都会出现，先把它们说清楚。</p>
+        <table>
+          <tr><th style="width:28%">概念</th><th>通俗理解</th></tr>
+          <tr><td>CT</td><td>通过影像反映患者内部组织结构的数据来源。</td></tr>
+          <tr><td>体素（voxel）</td><td>三维图像中的一个小立方体，可理解为三维像素。</td></tr>
+          <tr><td>ROI</td><td>人为勾画或定义、具有特定含义的区域。</td></tr>
+          <tr><td>材料映射</td><td>为每个体素分配适当的组织材料及相关参数。</td></tr>
+          <tr><td>粒子输运</td><td>模拟中子或光子在材料中如何运动、散射和发生反应。</td></tr>
+          <tr><td>Tally</td><td>按指定区域或物理条件统计的量，例如通量、反应率。</td></tr>
+          <tr><td>剂量</td><td>粒子与物质相互作用后，在物质中传递的能量除以质量所得的物理量。</td></tr>
+          <tr><td>统计不确定度</td><td>由于蒙特卡罗抽样有限而产生的统计波动估计。</td></tr>
+        </table>
+        <div class="note"><p><strong>通量不等于剂量。</strong>通量反映粒子分布；剂量计算还需要结合物理量转换、材料属性及剂量学定义等信息。</p></div>
+        <div class="note"><p><strong>结构标签不等于材料。</strong>ROI 表示结构含义，不代表每个 ROI 都必须对应一种独立材料，也不代表改动 ROI 标签就应改变所有材料属性。</p></div>
+
+        <h3>任务 6　做一次最小对照实验</h3>
+        <p>原样复现成功后，在导师允许且算力足够的条件下，做一个简单的统计测试，不要一开始就改动材料或物理模型。</p>
+        <ul>
+          <li><strong>案例 A：</strong>采用原始基准配置。</li>
+          <li><strong>案例 B：</strong>保持物理配置不变，仅调整模拟粒子历史数。</li>
+        </ul>
+        <p>记录两次计算的运行时间、统计不确定度和结果差异。这样可以直观理解蒙特卡罗统计精度与计算成本的关系。</p>
+        <p>对于独立随机抽样、处于相应渐近条件下的统计估计，统计误差通常随粒子历史数增加而近似按 <code>1/√N</code> 的规律降低。</p>
+        <div class="warn"><p>这只是帮助理解程序的入门实验，不是对剂量算法准确性的完整验证。也不要把改变粒子数带来的差异直接解释成某种物理过程的影响。</p></div>
+      </div>
+
+      <!-- ===== Ⅷ ===== -->
+      <div class="pillar" id="m-roi">
+        <div class="section-title"><div class="num">Ⅷ</div><h2>ROI 重叠问题：从最小测试开始</h2></div>
+        <p class="section-desc">只有已经能运行现有程序、理解数据基本含义时，才开始研究 ROI 重叠。</p>
+        <p>不要先处理复杂患者，也不要一开始就改动整套 TPS。</p>
+
+        <h3>任务 1　建立三个测试案例</h3>
+        <div class="grid cols-3">
+          <div class="mini"><h4>案例 A：没有重叠</h4><p>创建两个不相交的 ROI。检查每个体素的结构标签、材料属性和输出结果是否符合预期。</p><span class="small">目的：确认基本赋值逻辑正确。</span></div>
+          <div class="mini"><h4>案例 B：部分重叠</h4><p>让两个 ROI 在一部分体素中同时出现，检查程序如何处理重叠区域，是否有未赋值或错误覆盖。</p><span class="small">目的：定位真正存在的冲突。</span></div>
+          <div class="mini"><h4>案例 C：恰好相接</h4><p>确认相邻结构边界是否被正确处理，不能出现空隙、越界或错误覆盖。</p><span class="small">目的：排除重叠以外的边界问题。</span></div>
+        </div>
+        <p>这些是概念案例。实际测试应根据程序定义构造体素数据或 ROI 掩膜，并明确每个标签所代表的结构。</p>
+
+        <h3>任务 2　比较不同赋值方法</h3>
+        <ul>
+          <li>基于明确优先级的覆盖规则。</li>
+          <li>将组织材料与 ROI 结构标签、硼浓度等属性分别处理的方案。</li>
+          <li>如果网格与组织边界的关系确实需要更精细表达，再评估部分体积或亚体素方法。</li>
+        </ul>
+        <p>每种方法使用完全相同的测试数据和其他计算条件。记录重叠体素数量、最终赋值数量、未赋值情况、方法间差异，以及材料映射变化是否造成可观察的剂量影响。</p>
+        <div class="note"><p><strong>不要为了复杂而复杂。</strong>如果简单规则已满足物理要求，并在相关案例中得到验证，复杂方法未必更好。研究应回答哪种方法在既定条件下更合适，而不是预先认定越复杂越优秀。</p></div>
+        <div class="crosslinks">
+          <a class="crosslink" href="#/research">
+            <span class="cl-label">支撑材料</span>
+            <b>方向四的文献底子</b>
+            <span class="cl-desc">ROI 重叠与材料赋值这条线上的经典文献、方法学地基和临床处理现状，都在文献调研页。</span>
+          </a>
+          <a class="crosslink" href="#/manual/m-plan">
+            <span class="cl-label">下一步</span>
+            <b>把它排进 14 天计划</b>
+            <span class="cl-desc">第 12–13 天的任务正是定位 ROI 处理代码并设计重叠测试案例。</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- ===== Ⅸ ===== -->
+      <div class="pillar" id="m-plan">
+        <div class="section-title"><div class="num">Ⅸ</div><h2>14 天执行计划</h2></div>
+        <p class="section-desc">这个时间表用于组织工作，不代表每项工作必须在固定天数内完成。</p>
+        <p>若被权限、环境或资料缺失卡住，记录问题并及时向老师反馈，不要为赶进度跳过验证。勾选状态会自动保存在本地，下次打开还在。</p>
+        <div data-foot="plan"></div>
+        <div class="checklist" id="planChecklist">
+          <div class="day"><details open><summary>第 1 天｜建立目录与任务清单</summary><div class="content"><label><input type="checkbox">创建科研文件夹和实验日志</label><label><input type="checkbox">把五个方向记录到课题比较表</label><label><input type="checkbox">列出已有文件和资料缺口</label><p><strong>交付物：</strong>科研目录、课题清单、资料缺口清单。</p></div></details></div>
+          <div class="day"><details><summary>第 2 天｜阅读博士论文框架</summary><div class="content"><label><input type="checkbox">阅读摘要、目录和 TPS 基本介绍</label><label><input type="checkbox">找到 PCMC-NN、多射野优化、GPU 相关章节</label><label><input type="checkbox">记录研究目标、方法、验证指标和不足</label><p><strong>交付物：</strong>一份论文结构笔记。</p></div></details></div>
+          <div class="day"><details><summary>第 3 天｜了解 OpenMC 现有工作</summary><div class="content"><label><input type="checkbox">阅读相关 OpenMC-BNCT 系统论文</label><label><input type="checkbox">查明已实现的材料映射与剂量功能</label><label><input type="checkbox">填写 OpenMC 方向的比较表</label><p><strong>交付物：</strong>一页研究现状笔记。</p></div></details></div>
+          <div class="day"><details><summary>第 4 天｜准备讨论问题</summary><div class="content"><label><input type="checkbox">完成五个方向的第一版比较</label><label><input type="checkbox">列出最不清楚的五到十个问题</label><label><input type="checkbox">写出初步倾向和理由</label><p><strong>交付物：</strong>课题讨论单。</p></div></details></div>
+          <div class="day"><details><summary>第 5 天｜与老师沟通研究边界</summary><div class="content"><label><input type="checkbox">核实已有代码、数据和基准案例</label><label><input type="checkbox">确认已完成工作和未解决问题</label><label><input type="checkbox">记录近期任务与验收标准</label><p><strong>交付物：</strong>沟通记录和行动清单。</p></div></details></div>
+          <div class="day"><details><summary>第 6 天｜收集整理基准算例</summary><div class="content"><label><input type="checkbox">获取已运行成功的 PHITS 案例</label><label><input type="checkbox">确认入口、依赖文件和参考结果</label><label><input type="checkbox">完整备份原始文件</label><p><strong>交付物：</strong>完整的基准算例目录。</p></div></details></div>
+          <div class="day"><details><summary>第 7 天｜画出实际系统流程</summary><div class="content"><label><input type="checkbox">找到程序运行入口</label><label><input type="checkbox">确认关键输入、处理步骤和输出</label><label><input type="checkbox">将真实文件对应到流程图</label><p><strong>交付物：</strong>初版系统流程图。</p></div></details></div>
+          <div class="day"><details><summary>第 8 天｜原样运行基准算例</summary><div class="content"><label><input type="checkbox">按说明启动程序</label><label><input type="checkbox">保存日志、输入和输出文件</label><label><input type="checkbox">失败时保留完整错误信息</label><p><strong>交付物：</strong>第一次运行日志。</p></div></details></div>
+          <div class="day"><details><summary>第 9 天｜理解输入与输出</summary><div class="content"><label><input type="checkbox">识别主要物理输入和计算参数</label><label><input type="checkbox">确认输出的物理含义与单位</label><label><input type="checkbox">逐项查证不理解的变量</label><p><strong>交付物：</strong>输入输出说明表。</p></div></details></div>
+          <div class="day"><details><summary>第 10 天｜对照参考结果</summary><div class="content"><label><input type="checkbox">比较关键结果和程序运行情况</label><label><input type="checkbox">记录差异与统计不确定度</label><label><input type="checkbox">找出不能解释的结果</label><p><strong>交付物：</strong>基准复现小结。</p></div></details></div>
+          <div class="day"><details><summary>第 11 天｜做最小统计测试</summary><div class="content"><label><input type="checkbox">在允许的情况下调整模拟粒子数</label><label><input type="checkbox">比较耗时和统计波动</label><label><input type="checkbox">保持其他物理配置不变</label><p><strong>交付物：</strong>小型对照实验记录。</p></div></details></div>
+          <div class="day"><details><summary>第 12 天｜定位 ROI 处理代码</summary><div class="content"><label><input type="checkbox">找到 ROI 数据读取和处理位置</label><label><input type="checkbox">追踪标签、材料与硼浓度赋值路径</label><label><input type="checkbox">记录现有规则和待解决问题</label><p><strong>交付物：</strong>ROI 处理流程说明。</p></div></details></div>
+          <div class="day"><details><summary>第 13 天｜设计重叠测试</summary><div class="content"><label><input type="checkbox">构建无重叠、部分重叠、相接案例</label><label><input type="checkbox">明确每个案例预期的赋值结果</label><label><input type="checkbox">设计检查错误覆盖和未赋值的规则</label><p><strong>交付物：</strong>测试数据与测试方案。</p></div></details></div>
+          <div class="day"><details><summary>第 14 天｜总结并确认下一步</summary><div class="content"><label><input type="checkbox">整理已完成和未完成事项</label><label><input type="checkbox">列出最需要老师判断的问题</label><label><input type="checkbox">提出下一阶段计划和风险</label><p><strong>交付物：</strong>两周阶段报告。</p></div></details></div>
+        </div>
+      </div>
+
+      <!-- ===== Ⅹ ===== -->
+      <div class="pillar" id="m-skills">
+        <div class="section-title"><div class="num">Ⅹ</div><h2>能力学习顺序与暂缓事项</h2></div>
+        <p class="section-desc">把有限的时间投在马上要用到的地方。</p>
+        <h3>现在必须学的</h3>
+        <ul>
+          <li><strong>Python 基础：</strong>读写文本与表格、处理数组、编写函数、使用 NumPy 做基本计算、绘图。</li>
+          <li><strong>蒙特卡罗基础：</strong>随机抽样、粒子历史数、统计误差、基准验证。</li>
+          <li><strong>材料与剂量学基础：</strong>体素、材料、密度、通量、反应率、剂量及 BNCT 剂量组分。</li>
+          <li><strong>基本数据分析：</strong>制表、画分布曲线、比较数据、计算相对误差并解释指标。</li>
+        </ul>
+        <h3>现在可以暂缓的</h3>
+        <p>暂时不必系统学习 CUDA、深度学习网络结构、复杂遗传算法、PHITS 全部源码，也不必在研究问题未明确时搭建完整的 OpenMC 患者计算系统。</p>
+        <p>这些能力应服务于已确认的研究问题：若选 GPU 加速，再投入 CUDA；若选 OpenMC 引擎，再逐步学习固定源计算、材料建模、tally 和剂量后处理。</p>
+      </div>
+
+      <!-- ===== Ⅺ ===== -->
+      <div class="pillar" id="m-check">
+        <div class="section-title"><div class="num">Ⅺ</div><h2>阶段成果自检</h2></div>
+        <p class="section-desc">不要用“看了多少页论文、学了多少个算法”评价自己，看这五项是否完成。</p>
+        <div class="checklist" id="outcomeChecklist">
+          <label><input type="checkbox">我能不看笔记，向别人解释老师提出的五个方向分别要解决什么问题。</label>
+          <label><input type="checkbox">我有一张课题比较表，并能说清初步倾向的理由和主要风险。</label>
+          <label><input type="checkbox">我知道现有 TPS 的程序入口、主要输入、处理流程与输出结果。</label>
+          <label><input type="checkbox">我能运行至少一个基准算例，并保存日志、输入和可比较的输出结果。</label>
+          <label><input type="checkbox">我已定位 ROI 相关处理模块，能描述当前赋值规则并提出可测试的问题。</label>
+        </div>
+        <div class="note"><p><strong>最后的判断：</strong>你当前最缺的不是某一种算法，而是把工程问题拆解、运行、记录、验证并总结的完整能力。老师尚未确定具体研究方向前，最值得投入的三件事是：完成课题比较表、准备与老师讨论的问题、拿到并跑通一套现有基准算例。</p></div>
+        <p>等这三件事有了实质进展，再决定 ROI 重叠究竟适合作为独立小课题，还是成为 OpenMC 剂量引擎开发中的一个模块。这样的选择比现在仅凭想象判断哪个方向简单、哪个方向前沿更可靠。</p>
+      </div>
+
+      <!-- ===== 附 ===== -->
+      <div class="pillar" id="m-refs">
+        <div class="section-title"><div class="num">附</div><h2>参考资料与使用说明</h2></div>
+        <p class="section-desc">链接用于学习和查核研究现状。</p>
+        <h3>建议保留的官方文档与研究现状链接</h3>
+        <ul>
+          <li><a href="https://openmc.org/" target="_blank" rel="noopener">OpenMC 官方网站</a>：了解程序能力、接口和项目概况。</li>
+          <li><a href="https://docs.openmc.org/en/stable/" target="_blank" rel="noopener">OpenMC 官方文档</a>，可重点查看 <a href="https://docs.openmc.org/en/stable/usersguide/tallies.html" target="_blank" rel="noopener">Tally 指南</a>。</li>
+          <li><a href="https://phits.jaea.go.jp/manual/PHITS-en/" target="_blank" rel="noopener">PHITS 用户手册</a>：先看与你的基准算例直接相关的输入、源项、tally 与并行计算章节。</li>
+          <li><a href="https://www.hplpb.com.cn/en/article/doi/10.11884/HPLPB202537.250246" target="_blank" rel="noopener">Design of dose simulation system for BNCT based on MeVisLab and OpenMC</a>（2025 年发表）：适合用于确认已有 OpenMC-BNCT 系统的实现边界。</li>
+        </ul>
+        <p class="small">具体论文结论、代码能力与可复用资源仍需结合原文、实验室实际版本和导师说明确认。本文是科研入门与行动规划手册：系统流程、研究方案和时间表均需结合实验室实际代码、数据、导师要求和物理验证标准进一步确认，不要将概念示例直接当作临床剂量计算依据。</p>
+        <div class="crosslinks">
+          <a class="crosslink" href="#/research">
+            <span class="cl-label">相关页面</span>
+            <b>文献调研</b>
+            <span class="cl-desc">ROI 材料赋值这条线上的 12 篇核心文献与 DOI 直达链接。</span>
+          </a>
+          <a class="crosslink" href="#/about">
+            <span class="cl-label">相关页面</span>
+            <b>关于本站</b>
+            <span class="cl-desc">这个站在做什么，以及它为什么是个零依赖的单文件页面。</span>
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 子页四：待办 ==================== -->
+<section class="page" id="page-todo">
+  <div class="container">
+    <div class="page-head">
+      <div class="eyebrow">TASK BOARD</div>
+      <h1>待办清单</h1>
+      <p>在哪儿都能看到的任务列表。<a href="#/manual/m-plan">14 天计划</a> 是路线，这里是每天真正要动的那几件小事。</p>
+      <p class="small">清单默认只存在当前浏览器里。填好下面的同步配置后，改动会存进你的 GitHub 仓库，换台电脑打开就能拉到。</p>
+    </div>
+
+    <div class="panel">
+      <div class="add-row">
+        <input type="text" id="todoInput" placeholder="回车添加任务，例如：跑通第 8 天的基准算例" autocomplete="off">
+        <button class="btn-main" id="todoAdd" type="button">添加</button>
+      </div>
+
+      <div class="filters">
+        <button class="chip active" data-filter="open" type="button">未完成</button>
+        <button class="chip" data-filter="done" type="button">已完成</button>
+        <button class="chip" data-filter="all" type="button">全部</button>
+        <span class="spacer"></span>
+        <span class="todo-count" id="todoCount"></span>
+        <button class="btn-sm" id="todoClearDone" type="button">清空已完成</button>
+      </div>
+
+      <ul class="todo-list" id="todoList"></ul>
+      <p class="todo-empty" id="todoEmpty">这里还没有任务。上面输入框敲回车就能加一条。</p>
+    </div>
+
+    <div class="panel">
+      <h3>跨设备同步（GitHub 仓库当存储）</h3>
+      <p class="small" style="margin-bottom:14px">GitHub Pages 本身是纯静态托管，没有数据库，所以清单靠 GitHub API 写回你自己的仓库。<strong>只有点「立即同步」才会写</strong>，平时编辑只动本地。</p>
+
+      <div class="sync-grid">
+        <div class="full">
+          <label for="syncRepo">仓库（用户名/仓库名）</label>
+          <input type="text" id="syncRepo" placeholder="yourname/nuclear-notes" autocomplete="off" spellcheck="false">
+        </div>
+        <div>
+          <label for="syncBranch">分支</label>
+          <input type="text" id="syncBranch" placeholder="main" autocomplete="off" spellcheck="false">
+        </div>
+        <div>
+          <label for="syncPath">数据文件路径</label>
+          <input type="text" id="syncPath" placeholder="todos.json" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="full">
+          <label for="syncToken">Token（要写入仓库才需要；只读公共仓库可以留空）</label>
+          <input type="password" id="syncToken" placeholder="github_pat_..." autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+
+      <div class="sync-actions">
+        <button class="btn-main" id="syncNow" type="button">立即同步</button>
+        <button class="btn-sm" id="syncSave" type="button">保存配置</button>
+        <button class="btn-sm" id="syncPull" type="button">只拉取</button>
+        <button class="btn-sm" id="syncClear" type="button">清除凭证</button>
+        <span class="sync-state" id="syncState">未配置同步</span>
+      </div>
+
+      <div class="warn">
+        <p><strong>关于 token：</strong>建议用 Fine-grained token，只勾这一个仓库的 <code>Contents: Read and write</code> 权限，有效期设 90 天。token 只存在你自己浏览器的 localStorage 里，不会写进网页文件、也不会出现在仓库里。</p>
+        <p><strong>关于隐私：</strong>免费账号的 GitHub Pages 需要仓库是公开的，所以 <code>todos.json</code> 里的内容任何人都读得到——别往清单里写敏感信息。共用电脑用完请点「清除凭证」。</p>
+      </div>
+    </div>
+
+    <div class="crosslinks">
+      <a class="crosslink" href="#/manual/m-plan">
+        <span class="cl-label">上游</span>
+        <b>14 天执行计划</b>
+        <span class="cl-desc">这页清单里的任务，基本都能从 14 天计划里拆出来；那边勾的是阶段进度，这边勾的是当天要做的事。</span>
+      </a>
+      <a class="crosslink" href="#/manual/m-check">
+        <span class="cl-label">下游</span>
+        <b>阶段成果自检</b>
+        <span class="cl-desc">五项自检通过之后，就不该再往清单里堆同类任务了——该去跟老师谈下一阶段。</span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 子页五：关于 ==================== -->
+<section class="page" id="page-about">
+  <div class="container">
+    <div class="page-head">
+      <div class="eyebrow">ABOUT</div>
+      <h1>关于本站</h1>
+      <p>一个自己搭的单文件静态站点，用来放文献笔记、研究进展和零碎想法。</p>
+    </div>
+
+    <div class="block" style="padding-top:38px">
+      <div class="about-card">
+        <h3>这个站在做什么</h3>
+        <p>搭它的出发点很简单：读文献时攒下一堆判断和线索，散在笔记软件里过两个月就找不回来了。放到自己搭的页面上，能逼着我把话说清楚，也顺带把同一课题的链路串起来。</p>
+        <p>目前是两块成体系的内容，加上一个每天用的小工具——一条线管“读”，一条线管“做”，待办清单把它们落成当天的事：</p>
+        <p><strong><a href="#/research">文献调研</a></strong>——ROI 材料赋值这条线上的 12 篇核心文献，按三大支柱分类，带 DOI 直达链接和阅读顺序。<br>
+        <strong><a href="#/manual">行动手册</a></strong>——BNCT-TPS 五个研究方向的分析与选题判断、导师沟通的准备问题、基准算例的复现步骤和一份 14 天计划。<br>
+        <strong><a href="#/todo">待办清单</a></strong>——当天要做的事，可跨电脑同步。</p>
+      </div>
+
+      <div class="about-card">
+        <h3>在做的课题</h3>
+        <p>CT 勾画区域转蒙特卡罗材料时，<strong>重叠区的赋值策略</strong>。说人话就是：医生勾画的靶区和危及器官在空间上会重叠，把 CT 的 HU 值翻译成蒙卡能用的材料时，重叠那一坨体素到底听谁的——听靶区的、听危及器官的、还是按比例混合？不同选法会给剂量结果带来多大偏差，值不值得在治疗计划里认真处理。</p>
+        <p>这个问题不新，但在 BNCT 语境下被系统量化得还不够。</p>
+      </div>
+
+      <div class="about-card">
+        <h3>关注的方向</h3>
+        <div class="chips">
+          <span>BNCT 治疗计划系统</span>
+          <span>蒙特卡罗剂量计算</span>
+          <span>MCNP / 体素模型</span>
+          <span>CT HU → 材料与密度赋值</span>
+          <span>重叠 ROI 处理</span>
+          <span>DICOM 数据处理</span>
+        </div>
+      </div>
+
+      <div class="about-card">
+        <h3>技术说明</h3>
+        <p>纯静态单文件站点，零依赖——没有框架、没有 CDN、没有外部字体和图片，托管在 GitHub Pages 上。深浅两套主题走 CSS 变量，页面切换靠哈希路由。</p>
+        <p>各页的勾选状态和待办清单默认只保存在浏览器的本地存储里，不经过任何第三方服务器。待办清单可选配 GitHub 仓库同步：数据以 <code>todos.json</code> 的形式存回你自己的仓库，token 只留在本机浏览器中，不写进网页文件。站内所引文献的版权归原作者与出版方所有，这里只做个人学习索引。</p>
+      </div>
+
+      <div class="crosslinks">
+        <a class="crosslink" href="#/manual">
+          <span class="cl-label">站内内容</span>
+          <b>行动手册</b>
+          <span class="cl-desc">五个方向的分析、复现步骤、14 天计划。</span>
+        </a>
+        <a class="crosslink" href="#/research">
+          <span class="cl-label">站内内容</span>
+          <b>文献调研</b>
+          <span class="cl-desc">12 篇核心文献、DOI 直达、阅读路线。</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="foot-wrap">
+    <div>© 2026 <strong>Nuclear Notes</strong>　·　个人学习笔记</div>
+    <div class="foot-links">
+      <a href="#/home">首页</a>
+      <a href="#/research">文献调研</a>
+      <a href="#/manual">行动手册</a>
+      <a href="#/todo">待办</a>
+      <a href="#/about">关于</a>
+    </div>
+  </div>
+</footer>
+
+<button class="totop" id="toTop" type="button" aria-label="回到顶部">↑</button>
+
+<script>
+(function () {
+  /* ---------- 路由：#/页面 或 #/页面/锚点 ---------- */
+  var ROUTES = { home: '首页', research: '文献调研', manual: '行动手册', todo: '待办清单', about: '关于' };
+  var BASE_TITLE = 'Personal Site';
+  var pages = [].slice.call(document.querySelectorAll('.page'));
+  var navLinks = [].slice.call(document.querySelectorAll('[data-nav]'));
+  var navList = document.getElementById('navLinks');
+  var menuBtn = document.getElementById('menuBtn');
+  var first = true;
+
+  function parseHash() {
+    var h = (location.hash || '').replace(/^#\/?/, '');
+    var segs = h.split('/');
+    var page = (segs[0] || '').trim();
+    var anchor = (segs[1] || '').trim();
+    if (!page || !document.getElementById('page-' + page)) { page = 'home'; anchor = ''; }
+    return { page: page, anchor: anchor };
+  }
+
+  function render() {
+    var r = parseHash();
+    pages.forEach(function (p) { p.classList.toggle('active', p.id === 'page-' + r.page); });
+    navLinks.forEach(function (a) { a.classList.toggle('active', a.getAttribute('data-nav') === r.page); });
+    document.title = r.page === 'home' ? BASE_TITLE : (ROUTES[r.page] || '') + ' · ' + BASE_TITLE;
+    if (navList) navList.classList.remove('open');
+
+    var target = r.anchor ? document.getElementById(r.anchor) : null;
+    if (target) {
+      target.scrollIntoView(first ? { behavior: 'instant', block: 'start' } : { behavior: 'smooth', block: 'start' });
+    } else {
+      window.scrollTo(0, 0);
+    }
+    first = false;
+  }
+
+  window.addEventListener('hashchange', render);
+  render();
+
+  /* ---------- 移动端菜单 ---------- */
+  if (menuBtn) {
+    menuBtn.addEventListener('click', function () { navList.classList.toggle('open'); });
+  }
+
+  /* ---------- 勾选清单：本地保存 + 进度 ---------- */
+  var FOOT_TPL = '<span class="progress"><span></span></span><span class="count"></span><button type="button" class="btn-sm">重置</button>';
+
+  function setupChecklist(list, key, doneWord, foot) {
+    if (!list) return;
+    var boxes = [].slice.call(list.querySelectorAll('input[type="checkbox"]'));
+    if (!boxes.length) return;
+    foot = foot || list.parentNode.insertBefore(document.createElement('div'), list.nextSibling);
+    foot.className = 'check-foot';
+    foot.innerHTML = FOOT_TPL;
+    var bar = foot.querySelector('.progress span');
+    var count = foot.querySelector('.count');
+    var reset = foot.querySelector('.btn-sm');
+
+    var saved = [];
+    try { saved = JSON.parse(localStorage.getItem(key) || '[]'); } catch (e) {}
+    boxes.forEach(function (b, i) { b.checked = !!saved[i]; });
+
+    function update() {
+      var n = boxes.filter(function (b) { return b.checked; }).length;
+      bar.style.width = (n / boxes.length * 100) + '%';
+      count.textContent = '已勾选 ' + n + ' / ' + boxes.length + ' 项' + (n === boxes.length && doneWord ? doneWord : '');
+      try {
+        localStorage.setItem(key, JSON.stringify(boxes.map(function (b) { return b.checked; })));
+      } catch (e) {}
+    }
+    boxes.forEach(function (b) { b.addEventListener('change', update); });
+    reset.addEventListener('click', function () {
+      boxes.forEach(function (b) { b.checked = false; });
+      update();
+    });
+    update();
+  }
+
+  setupChecklist(document.getElementById('resourceChecklist'), 'bnct-resource', '：资料齐了。');
+  setupChecklist(document.getElementById('planChecklist'), 'bnct-plan', '：两周计划全部走完。', document.querySelector('[data-foot="plan"]'));
+  setupChecklist(document.getElementById('outcomeChecklist'), 'bnct-outcome', '：已具备讨论下一阶段研究任务的基本条件。');
+
+  /* ---------- 回到顶部 ---------- */
+  var totop = document.getElementById('toTop');
+  if (totop) {
+    window.addEventListener('scroll', function () {
+      totop.classList.toggle('show', window.scrollY > 520);
+    }, { passive: true });
+    totop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  }
+
+  /* ---------- 主题 ---------- */
+  var root = document.documentElement;
+  function applyTheme(t) {
+    root.setAttribute('data-theme', t);
+    try { localStorage.setItem('site-theme', t); } catch (e) {}
+  }
+  var saved2 = null;
+  try { saved2 = localStorage.getItem('site-theme'); } catch (e) {}
+  if (!saved2) {
+    saved2 = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  applyTheme(saved2);
+
+  var themeBtn = document.getElementById('themeBtn');
+  if (themeBtn) {
+    themeBtn.addEventListener('click', function () {
+      applyTheme(root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+    });
+  }
+})();
+</script>
+
+<script>
+/* ================= 待办清单：本地存储 + 可选的 GitHub 仓库同步 ================= */
+(function () {
+  'use strict';
+
+  var TASKS_KEY = 'todo-tasks';
+  var CFG_KEY = 'todo-sync';
+  var LAST_KEY = 'todo-last-sync';
+
+  var listEl = document.getElementById('todoList');
+  if (!listEl) return;
+
+  var inputEl = document.getElementById('todoInput');
+  var emptyEl = document.getElementById('todoEmpty');
+  var countEl = document.getElementById('todoCount');
+  var syncStateEl = document.getElementById('syncState');
+  var chips = [].slice.call(document.querySelectorAll('.filters .chip'));
+  var elRepo = document.getElementById('syncRepo');
+  var elBranch = document.getElementById('syncBranch');
+  var elPath = document.getElementById('syncPath');
+  var elToken = document.getElementById('syncToken');
+
+  var filter = 'open';
+  var tasks = readTasks();
+  var syncing = false;
+
+  function readTasks() {
+    try {
+      var raw = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
+      return Array.isArray(raw) ? raw : [];
+    } catch (e) { return []; }
+  }
+  function saveTasks() {
+    try { localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); } catch (e) {}
+  }
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function live() { return tasks.filter(function (t) { return !t.del; }); }
+  function visible() {
+    if (filter === 'all') return live();
+    return live().filter(function (t) { return filter === 'done' ? t.done : !t.done; });
+  }
+  function stats() {
+    var l = live();
+    return { total: l.length, open: l.filter(function (t) { return !t.done; }).length };
+  }
+  function fmt(ts) {
+    if (!ts) return '';
+    var d = new Date(ts), p = function (n) { return n < 10 ? '0' + n : '' + n; };
+    return (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  function render() {
+    var rows = visible();
+    listEl.innerHTML = '';
+    rows.forEach(function (t) {
+      var li = document.createElement('li');
+      li.className = 'todo-item' + (t.done ? ' done' : '');
+
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = !!t.done;
+      cb.addEventListener('change', function () { toggle(t.id); });
+
+      var wrap = document.createElement('div');
+      wrap.style.flex = '1';
+      wrap.style.minWidth = '0';
+
+      var txt = document.createElement('div');
+      txt.className = 'txt';
+      txt.textContent = t.text;
+      txt.title = '双击可以改文字';
+      txt.addEventListener('dblclick', function () {
+        txt.contentEditable = 'true';
+        txt.focus();
+        if (document.execCommand) document.execCommand('selectAll', false, null);
+      });
+      txt.addEventListener('blur', function () {
+        txt.contentEditable = 'false';
+        var v = (txt.textContent || '').trim();
+        if (!v) { txt.textContent = t.text; return; }
+        if (v !== t.text) { t.text = v; t.updated = Date.now(); saveTasks(); }
+      });
+      txt.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); txt.blur(); }
+        if (e.key === 'Escape') { txt.textContent = t.text; txt.blur(); }
+      });
+
+      var meta = document.createElement('div');
+      meta.className = 'meta';
+      meta.textContent = '添加于 ' + fmt(t.created);
+
+      wrap.appendChild(txt);
+      wrap.appendChild(meta);
+
+      var del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'del';
+      del.title = '删除';
+      del.textContent = '×';
+      del.addEventListener('click', function () { remove(t.id); });
+
+      li.appendChild(cb);
+      li.appendChild(wrap);
+      li.appendChild(del);
+      listEl.appendChild(li);
+    });
+
+    var s = stats();
+    emptyEl.style.display = rows.length ? 'none' : 'block';
+    emptyEl.textContent = s.total === 0
+      ? '这里还没有任务。上面输入框敲回车就能加一条。'
+      : '当前筛选下没有任务。';
+    countEl.textContent = '共 ' + s.total + ' 项 · 未完成 ' + s.open + ' 项';
+    chips.forEach(function (c) { c.classList.toggle('active', c.getAttribute('data-filter') === filter); });
+  }
+
+  function add() {
+    var v = (inputEl.value || '').trim();
+    if (!v) { inputEl.focus(); return; }
+    var now = Date.now();
+    tasks.unshift({ id: uid(), text: v, done: false, created: now, updated: now });
+    inputEl.value = '';
+    saveTasks(); render();
+  }
+  function toggle(id) {
+    tasks.forEach(function (t) { if (t.id === id) { t.done = !t.done; t.updated = Date.now(); } });
+    saveTasks(); render();
+  }
+  function remove(id) {
+    // 用墓碑标记而不是直接删，这样"删除"也能同步到另一台电脑
+    tasks.forEach(function (t) { if (t.id === id) { t.del = true; t.updated = Date.now(); } });
+    saveTasks(); render();
+  }
+
+  document.getElementById('todoAdd').addEventListener('click', add);
+  inputEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') add(); });
+  document.getElementById('todoClearDone').addEventListener('click', function () {
+    var n = tasks.filter(function (t) { return !t.del && t.done; }).length;
+    if (!n) return;
+    if (!window.confirm('把 ' + n + ' 项已完成的任务移出清单？')) return;
+    var now = Date.now();
+    tasks.forEach(function (t) { if (!t.del && t.done) { t.del = true; t.updated = now; } });
+    saveTasks(); render();
+  });
+  chips.forEach(function (c) {
+    c.addEventListener('click', function () { filter = c.getAttribute('data-filter'); render(); });
+  });
+
+  /* ---------- GitHub 同步 ---------- */
+  function readCfg() {
+    try { return JSON.parse(localStorage.getItem(CFG_KEY) || '{}') || {}; } catch (e) { return {}; }
+  }
+  function writeCfg(c) {
+    try { localStorage.setItem(CFG_KEY, JSON.stringify(c)); } catch (e) {}
+  }
+  function fillForm() {
+    var c = readCfg();
+    elRepo.value = c.repo || '';
+    elBranch.value = c.branch || 'main';
+    elPath.value = c.path || 'todos.json';
+    elToken.value = c.token || '';
+  }
+  function readForm() {
+    var repo = (elRepo.value || '').trim()
+      .replace(/^https?:\/\/github\.com\//i, '')
+      .replace(/\.git$/i, '')
+      .replace(/^\/+|\/+$/g, '');
+    return {
+      repo: repo,
+      branch: (elBranch.value || 'main').trim() || 'main',
+      path: (elPath.value || 'todos.json').trim().replace(/^\/+/, '') || 'todos.json',
+      token: (elToken.value || '').trim()
+    };
+  }
+  function setState(msg, cls) {
+    syncStateEl.textContent = msg;
+    syncStateEl.className = 'sync-state' + (cls ? ' ' + cls : '');
+  }
+  function stamp() {
+    var now = Date.now();
+    try { localStorage.setItem(LAST_KEY, String(now)); } catch (e) {}
+    return fmt(now);
+  }
+  function lastText() {
+    var v = null;
+    try { v = localStorage.getItem(LAST_KEY); } catch (e) {}
+    return v ? '上次同步：' + fmt(Number(v)) : '还没同步过';
+  }
+
+  function apiUrl(c, withRef) {
+    var u = 'https://api.github.com/repos/' + c.repo + '/contents/' + c.path.split('/').map(encodeURIComponent).join('/');
+    if (withRef) u += '?ref=' + encodeURIComponent(c.branch) + '&_=' + Date.now();
+    return u;
+  }
+  function ghHeaders(c) {
+    var h = { 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
+    if (c.token) h['Authorization'] = 'Bearer ' + c.token;
+    return h;
+  }
+  function b64encode(str) {
+    var bytes = new TextEncoder().encode(str), bin = '';
+    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+  }
+  function b64decode(b64) {
+    var bin = atob(String(b64 || '').replace(/\s/g, ''));
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  }
+  function merge(local, remote) {
+    var map = {};
+    local.concat(remote).forEach(function (t) {
+      if (!t || !t.id) return;
+      var cur = map[t.id];
+      if (!cur || (t.updated || 0) > (cur.updated || 0)) map[t.id] = t;
+    });
+    return Object.keys(map).map(function (k) { return map[k]; });
+  }
+
+  function pull(c) {
+    return fetch(apiUrl(c, true), { headers: ghHeaders(c), cache: 'no-store' }).then(function (r) {
+      if (r.status === 404) return { remote: [], sha: null };
+      if (r.status === 401 || r.status === 403) throw new Error('读不到仓库：token 无效或权限不足（HTTP ' + r.status + '）');
+      if (!r.ok) throw new Error('读取失败 HTTP ' + r.status);
+      return r.json().then(function (j) {
+        var data = {};
+        try { data = JSON.parse(b64decode(j.content)); } catch (e) {}
+        return { remote: (data && data.tasks) || [], sha: j.sha };
+      });
+    });
+  }
+  function push(c, list, sha) {
+    var body = {
+      message: 'todos: ' + new Date().toISOString().slice(0, 16).replace('T', ' '),
+      content: b64encode(JSON.stringify({ version: 1, updated: new Date().toISOString(), tasks: list }, null, 2)),
+      branch: c.branch
+    };
+    if (sha) body.sha = sha;
+    return fetch(apiUrl(c, false), {
+      method: 'PUT',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, ghHeaders(c)),
+      body: JSON.stringify(body)
+    }).then(function (r) {
+      if (r.ok) return r.json();
+      var m = '写入失败 HTTP ' + r.status;
+      if (r.status === 401) m += '：token 无效或已过期';
+      else if (r.status === 403) m += '：token 没有 Contents 写权限';
+      else if (r.status === 404) m += '：仓库或路径不存在';
+      else if (r.status === 409) m += '：远端刚被改过，再点一次同步';
+      throw new Error(m);
+    });
+  }
+
+  function doSync(withPush) {
+    if (syncing) return;
+    var c = readForm();
+    if (!c.repo || c.repo.indexOf('/') < 0) { setState('仓库要写成「用户名/仓库名」', 'err'); return; }
+    if (withPush && !c.token) { setState('要写回仓库，得先填 token', 'err'); return; }
+    writeCfg(c);
+    syncing = true;
+    setState(withPush ? '同步中…' : '拉取中…');
+    var sha = null;
+    pull(c).then(function (res) {
+      sha = res.sha;
+      tasks = merge(tasks, res.remote);
+      saveTasks(); render();
+      if (!withPush) {
+        setState(res.remote.length
+          ? '已拉取远端 ' + res.remote.length + ' 条记录 · ' + stamp()
+          : '远端还没有数据文件（点「立即同步」会创建）· ' + stamp(), 'ok');
+        return null;
+      }
+      return push(c, tasks, sha);
+    }).then(function (r) {
+      if (r === null) return;
+      setState('已同步 ' + stats().total + ' 项 · ' + stamp(), 'ok');
+    }).catch(function (err) {
+      setState((err && err.message) || '同步失败', 'err');
+    }).then(function () { syncing = false; });
+  }
+
+  document.getElementById('syncSave').addEventListener('click', function () {
+    var c = readForm();
+    if (!c.repo || c.repo.indexOf('/') < 0) { setState('仓库要写成「用户名/仓库名」', 'err'); return; }
+    writeCfg(c);
+    setState('配置已存在本机 · ' + lastText(), '');
+  });
+  document.getElementById('syncNow').addEventListener('click', function () { doSync(true); });
+  document.getElementById('syncPull').addEventListener('click', function () { doSync(false); });
+  document.getElementById('syncClear').addEventListener('click', function () {
+    if (!window.confirm('清除本机保存的仓库地址和 token？（清单本身不会删）')) return;
+    try { localStorage.removeItem(CFG_KEY); } catch (e) {}
+    elToken.value = '';
+    setState('凭证已清除', '');
+  });
+
+  fillForm();
+  setState(lastText());
+  render();
+
+  // 打开页面时静默拉一次（只读，不写仓库）
+  var c0 = readCfg();
+  if (c0.repo && c0.repo.indexOf('/') > -1) doSync(false);
+})();
+</script>
+
+</body>
+</html>
